@@ -1,0 +1,3 @@
+# Compatibility override: the main Compose file now publishes PostgreSQL.
+services:
+  db: {}
