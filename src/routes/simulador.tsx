@@ -26,7 +26,8 @@ export const Route = createFileRoute("/simulador")({
       { property: "og:title", content: "Simulador ¿Qué pasaría si...? | Intelli-Stock" },
       {
         property: "og:description",
-        content: "Escenarios de quiebre y de compra calculados sobre los datos reales del sistema.",
+        content:
+          "Escenarios de quiebre y de compra calculados sobre los datos de demostración del sistema.",
       },
     ],
   }),
@@ -82,7 +83,7 @@ function Simulador() {
   return (
     <AppShell
       title="¿Qué pasaría si...?"
-      subtitle="Simulador de escenarios sobre los datos reales del inventario"
+      subtitle="Simulador de escenarios sobre el inventario de demostración"
     >
       <Panel className="p-5">
         <div className="flex flex-wrap items-center gap-3">

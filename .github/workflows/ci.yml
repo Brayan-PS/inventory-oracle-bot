@@ -1,0 +1,53 @@
+# Integración continua: lint, tipos, pruebas unitarias, build, integración con PostgreSQL real
+# y pruebas de extremo a extremo en navegador. Se ejecuta en cada push y pull request.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  pruebas:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-bookworm
+        env:
+          POSTGRES_DB: intelli_stock_test
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci_solo_pruebas
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U ci -d intelli_stock_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: "5432"
+      PGDATABASE: intelli_stock_test
+      PGUSER: ci
+      PGPASSWORD: ci_solo_pruebas
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.16.0"
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Lint
+        run: npm run lint
+      - name: Tipos
+        run: npm run typecheck
+      - name: Pruebas unitarias
+        run: npm test
+      - name: Build
+        run: npm run build
+        env:
+          NITRO_PRESET: node_server
+      - name: Integración (servidor + PostgreSQL + Gemini simulado)
+        run: npm run test:integration
+      - name: Navegador (Playwright)
+        run: |
+          npx playwright install --with-deps chromium
+          npm run test:e2e
+        env:
+          E2E_ALLOW_DB_RESET: "1"

@@ -15,7 +15,14 @@ export const decisionSchema = decisionInputSchema.extend({
   usuario: z.string().min(1).max(500),
 });
 export const createDecisionSchema = decisionInputSchema.extend({ id: z.string().uuid() });
-export const importDecisionsSchema = z.array(decisionSchema).min(1).max(10000);
+/** Importación del historial anterior (máx. 2000 registros por lote). */
+export const importDecisionsSchema = z.array(decisionSchema).min(1).max(2000);
 export type DecisionInput = z.infer<typeof decisionInputSchema>;
-export type Decision = z.infer<typeof decisionSchema>;
+export type Decision = z.infer<typeof decisionSchema> & {
+  /** "app" si se registró en la aplicación; "importado" si vino del historial anterior. */
+  origen?: "app" | "importado";
+  /** Usuario de la sesión que registró o importó la decisión (lo fija el servidor). */
+  registradoPor?: string | null;
+  registradoEn?: string;
+};
 export type DecisionEstado = Decision["estado"];

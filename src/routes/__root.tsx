@@ -11,7 +11,8 @@ import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { StoreProvider } from "../lib/store";
-import { loadInventory } from "../lib/data.functions";
+import { loadApp } from "../lib/data.functions";
+import { LoginScreen } from "../components/LoginScreen";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 
 function NotFoundComponent() {
@@ -75,7 +76,7 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
 }
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
-  loader: () => loadInventory(),
+  loader: () => loadApp(),
   head: () => ({
     meta: [
       { charSet: "utf-8" },
@@ -106,7 +107,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="es">
       <head>
         <HeadContent />
       </head>
@@ -120,11 +121,20 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
-  const snapshot = Route.useLoaderData();
+  const data = Route.useLoaderData();
+
+  // Sin sesión se muestra el inicio de sesión en cualquier ruta (no se envían datos).
+  if (!data.usuario) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <LoginScreen />
+      </QueryClientProvider>
+    );
+  }
 
   return (
     <QueryClientProvider client={queryClient}>
-      <StoreProvider snapshot={snapshot}>
+      <StoreProvider snapshot={data} usuario={data.usuario}>
         {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
         <Outlet />
       </StoreProvider>

@@ -32,7 +32,7 @@ const tone: Record<DecisionEstado, "good" | "info" | "warn" | "accent"> = {
 };
 
 function Historial() {
-  const { decisions } = useStore();
+  const { decisions, puedeDecidir } = useStore();
   const aprobados = decisions.filter((d) => d.estado === "aprobado" || d.estado === "modificado");
   const invertido = aprobados.reduce((a, d) => a + d.costo, 0);
   const ajustadas = decisions.filter((d) => d.estado === "modificado").length;
@@ -43,7 +43,7 @@ function Historial() {
       title="Historial de decisiones"
       subtitle="Trazabilidad de las recomendaciones y de la decisión humana"
     >
-      <LegacyDecisionsImport />
+      {puedeDecidir && <LegacyDecisionsImport />}
       <section className="grid grid-cols-2 gap-4 md:grid-cols-4">
         <Kpi
           label="Decisiones registradas"
@@ -106,6 +106,15 @@ function Historial() {
                   </div>
                   <p className="mt-1 font-mono text-[11px] text-muted-foreground">
                     {new Date(d.fecha).toLocaleString("es-PE")} · {d.usuario}
+                    {d.origen === "importado" && (
+                      <span className="text-warn">
+                        {" "}
+                        · importado por {d.registradoPor ?? "—"}
+                        {d.registradoEn
+                          ? ` el ${new Date(d.registradoEn).toLocaleDateString("es-PE")}`
+                          : ""}
+                      </span>
+                    )}
                   </p>
                   <p className="mt-1 text-[12px] text-muted-foreground">{d.motivo}</p>
                 </div>

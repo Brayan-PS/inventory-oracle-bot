@@ -2,24 +2,60 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
 import { useStore, useInventory } from "@/lib/store";
-import { AGENT_BY_ID, SUGERENCIAS, askSupervisor, type SupervisorAnswer } from "@/lib/supervisor";
-import type { Product } from "@/lib/inventory";
+import {
+  AGENT_BY_ID,
+  SUGERENCIAS,
+  askSupervisor,
+  rulesReply,
+  type SupervisorReply,
+} from "@/lib/supervisor";
 import { money } from "./kit";
 
 interface Turn {
   id: number;
   pregunta: string;
-  answer: SupervisorAnswer;
+  answer: SupervisorReply | null;
   revelados: number;
   listo: boolean;
 }
 
+class SesionExpirada extends Error {}
+
+/** Últimos turnos de la conversación (memoria que se envía al Supervisor). */
+function historialDe(turns: Turn[]) {
+  return turns
+    .filter((t) => t.answer)
+    .slice(-3)
+    .map((t) => ({
+      pregunta: t.pregunta.slice(0, 500),
+      respuesta: [t.answer!.titulo, t.answer!.resumen, ...t.answer!.bullets.map((b) => `- ${b}`)]
+        .join("\n")
+        .slice(0, 1500),
+    }));
+}
+
+async function consultarServidor(
+  consulta: string,
+  contextoSku: string | undefined,
+  historial: ReturnType<typeof historialDe>,
+): Promise<SupervisorReply> {
+  const res = await fetch("/api/supervisor", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ consulta, historial, ...(contextoSku ? { contextoSku } : {}) }),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (res.status === 401) throw new SesionExpirada(json.error ?? "Sesión expirada");
+  if (!res.ok) throw new Error(json.error ?? "Error del Supervisor");
+  return json as SupervisorReply;
+}
+
 export function SupervisorPanel() {
   const { PRODUCTS } = useInventory();
-  const { addDecision, pushLog, estadoDe } = useStore();
+  const { addDecision, pushLog, estadoDe, usuario, puedeDecidir, sesionExpirada } = useStore();
   const [input, setInput] = useState("");
   const [turns, setTurns] = useState<Turn[]>([]);
-  const [contexto, setContexto] = useState<Product | undefined>();
+  const [contexto, setContexto] = useState<string | undefined>();
   const [editando, setEditando] = useState<{ turn: number; cantidad: number } | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -31,15 +67,35 @@ export function SupervisorPanel() {
   }, [turns]);
 
   const preguntar = useCallback(
-    (texto: string) => {
+    async (texto: string) => {
       const q = texto.trim();
-      if (!q) return;
-      const answer = askSupervisor(q, PRODUCTS, contexto);
-      if (answer.productos[0]) setContexto(answer.productos[0]);
+      if (!q || turns.some((t) => !t.listo)) return;
       const id = Date.now();
-      setTurns((prev) => [...prev, { id, pregunta: q, answer, revelados: 0, listo: false }]);
+      setTurns((prev) => [...prev, { id, pregunta: q, answer: null, revelados: 0, listo: false }]);
       setInput("");
       pushLog("supervisor", `Recibió consulta: "${q}"`);
+
+      const t0 = performance.now();
+      let answer: SupervisorReply;
+      try {
+        answer = await consultarServidor(q, contexto, historialDe(turns));
+      } catch (err) {
+        if (err instanceof SesionExpirada) {
+          setTurns((prev) => prev.filter((tt) => tt.id !== id));
+          sesionExpirada();
+          return;
+        }
+        const ctx = contexto ? PRODUCTS.find((p) => p.sku === contexto) : undefined;
+        answer = rulesReply(
+          askSupervisor(q, PRODUCTS, ctx),
+          "Sin conexión con el servidor: respuesta local por reglas",
+          Math.round(performance.now() - t0),
+        );
+      }
+      if (answer.productos.length === 1 && answer.productos[0])
+        setContexto(answer.productos[0].sku);
+      else if (answer.recomendacion) setContexto(answer.recomendacion.sku);
+      setTurns((prev) => prev.map((tt) => (tt.id === id ? { ...tt, answer } : tt)));
 
       answer.pasos.forEach((paso, i) => {
         const t = setTimeout(
@@ -53,13 +109,15 @@ export function SupervisorPanel() {
             );
             pushLog(paso.agent, paso.texto.replace("…", "") + " — " + paso.detalle);
           },
-          520 * (i + 1),
+          380 * (i + 1),
         );
         timers.current.push(t);
       });
     },
-    [contexto, pushLog, PRODUCTS],
+    [contexto, pushLog, PRODUCTS, turns, sesionExpirada],
   );
+
+  const ultimoModo = [...turns].reverse().find((t) => t.answer)?.answer?.traza.modo;
 
   return (
     <aside className="flex w-[360px] shrink-0 flex-col border-l border-line bg-surface">
@@ -71,7 +129,13 @@ export function SupervisorPanel() {
           <p className="font-display text-sm font-semibold tracking-tight">Supervisor IA</p>
           <p className="flex items-center gap-1.5 font-mono text-[11px] text-good">
             <span className="blink size-1.5 rounded-full bg-good" />
-            {turns.some((t) => !t.listo) ? "Consultando agentes…" : "En línea · 5 agentes"}
+            {turns.some((t) => !t.listo)
+              ? "Consultando agentes…"
+              : ultimoModo === "reglas"
+                ? "Última respuesta: motor de reglas (respaldo)"
+                : ultimoModo === "llm"
+                  ? "Última respuesta: Gemini + agentes"
+                  : `Gemini + 4 agentes · ${usuario.nombre}`}
           </p>
         </div>
       </header>
@@ -90,7 +154,7 @@ export function SupervisorPanel() {
               {SUGERENCIAS.map((s) => (
                 <button
                   key={s}
-                  onClick={() => preguntar(s)}
+                  onClick={() => void preguntar(s)}
                   className="rounded-lg border border-line px-2.5 py-1.5 text-left text-[12px] text-muted-foreground transition-colors hover:border-accent/50 hover:text-foreground"
                 >
                   {s}
@@ -102,6 +166,24 @@ export function SupervisorPanel() {
 
         {turns.map((turn, ti) => {
           const a = turn.answer;
+          if (!a) {
+            return (
+              <div key={turn.id} className="space-y-3">
+                <div className="ml-auto max-w-[88%] rounded-2xl rounded-tr-sm bg-accent/10 px-3.5 py-2.5 text-[13px]">
+                  {turn.pregunta}
+                </div>
+                <div className="flex items-center gap-2.5 rounded-xl border border-line bg-background/40 p-3 text-[13px]">
+                  <span className="grid size-5 place-items-center rounded-full bg-info/15 text-[10px] font-bold text-info">
+                    S
+                  </span>
+                  <span className="flex-1">
+                    El Supervisor está decidiendo qué agentes consultar…
+                  </span>
+                  <span className="blink font-mono text-[11px] text-info">▍</span>
+                </div>
+              </div>
+            );
+          }
           const reco = a.recomendacion;
           const estado = reco ? estadoDe(reco.sku) : undefined;
           return (
@@ -226,6 +308,10 @@ export function SupervisorPanel() {
                         <p className="mt-3 font-mono text-[11px] text-good">
                           ◆ Decisión registrada: {estado}. Revísala en Historial de decisiones.
                         </p>
+                      ) : !puedeDecidir ? (
+                        <p className="mt-3 font-mono text-[11px] text-warn">
+                          ◆ Tu rol ({usuario.rol}) puede consultar pero no aprobar compras.
+                        </p>
                       ) : editando?.turn === turn.id ? (
                         <div className="mt-3 flex gap-2">
                           <input
@@ -324,12 +410,62 @@ export function SupervisorPanel() {
                       <span className="text-warn">◆</span> {a.nota}
                     </p>
                   )}
+                  <details className="rounded-xl border border-line bg-background/40 p-3 text-[11px]">
+                    <summary className="cursor-pointer font-mono uppercase tracking-wider text-muted-foreground">
+                      Traza ·{" "}
+                      <span className={a.traza.modo === "llm" ? "text-good" : "text-warn"}>
+                        {a.traza.modo === "llm" ? "LLM" : "Reglas (respaldo)"}
+                      </span>{" "}
+                      · {a.traza.llamadas.length} llamadas · {(a.traza.ms / 1000).toFixed(1)} s
+                    </summary>
+                    <div className="mt-2 space-y-1.5 font-mono leading-snug text-muted-foreground">
+                      <p>Modelo: {a.traza.modelo}</p>
+                      {a.traza.motivo && (
+                        <p className="text-warn">Motivo del respaldo: {a.traza.motivo}</p>
+                      )}
+                      <p>
+                        Tokens: {a.traza.tokensEntrada} entrada / {a.traza.tokensSalida} salida ·
+                        costo est. US$ {a.traza.costoUsd.toFixed(5)}
+                      </p>
+                      {a.traza.verificacion && (
+                        <p>
+                          Verificación de cifras: {a.traza.verificacion.revisados} revisadas,{" "}
+                          {a.traza.verificacion.noEncontrados.length} sin respaldo
+                          {a.traza.correccion ? " (Gemini corrigió cifras una vez)" : ""}
+                        </p>
+                      )}
+                      <ol className="list-decimal space-y-1 pl-4">
+                        {a.traza.llamadas.map((l, i) => (
+                          <li key={i}>
+                            <span className="text-info">{AGENT_BY_ID[l.agente].corto}</span> →{" "}
+                            {l.herramienta}({JSON.stringify(l.argumentos)}): {l.resumen}
+                          </li>
+                        ))}
+                      </ol>
+                      {a.traza.mensajes && a.traza.mensajes.length > 0 && (
+                        <details>
+                          <summary className="cursor-pointer text-info">
+                            {a.traza.mensajes.length} mensajes entre agentes
+                          </summary>
+                          <ol className="mt-1 space-y-0.5 pl-1">
+                            {a.traza.mensajes.map((m) => (
+                              <li key={m.n}>
+                                {m.n}. {AGENT_BY_ID[m.de].corto} → {AGENT_BY_ID[m.para].corto} [
+                                {m.tipo}] {m.asunto}: {m.contenido}
+                              </li>
+                            ))}
+                          </ol>
+                        </details>
+                      )}
+                      {a.runId && <p>Registro de auditoría: {a.runId.slice(0, 8)}</p>}
+                    </div>
+                  </details>
                   {ti === turns.length - 1 && (
                     <div className="flex flex-wrap gap-1.5 pt-1">
                       {SUGERENCIAS.slice(0, 4).map((s) => (
                         <button
                           key={s}
-                          onClick={() => preguntar(s)}
+                          onClick={() => void preguntar(s)}
                           className="rounded-lg border border-line px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:border-accent/50 hover:text-foreground"
                         >
                           {s}
@@ -348,7 +484,7 @@ export function SupervisorPanel() {
       <form
         onSubmit={(e) => {
           e.preventDefault();
-          preguntar(input);
+          void preguntar(input);
         }}
         className="shrink-0 border-t border-line p-3"
       >

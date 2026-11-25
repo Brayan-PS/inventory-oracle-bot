@@ -1,0 +1,56 @@
+# Blueprint de Render: servicio web (Docker) + PostgreSQL gestionado.
+# Render > New > Blueprint > selecciona este repositorio. Te pedirá GEMINI_API_KEY y DEMO_PASSWORD.
+services:
+  - type: web
+    name: intelli-stock
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile.render
+    dockerContext: .
+    healthCheckPath: /health/ready
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: intelli-stock-db
+          property: connectionString
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-3.8-flash
+      - key: GEMINI_FALLBACK_MODELS
+        value: gemini-3.5-flash,gemini-3.1-flash-lite
+      - key: LLM_MAX_TOOL_CALLS
+        value: "6"
+      - key: LLM_TIMEOUT_MS
+        value: "45000"
+      - key: LLM_MAX_OUTPUT_TOKENS
+        value: "8192"
+      - key: LLM_RATE_PER_MIN
+        value: "10"
+      - key: LLM_DAILY_CAP
+        value: "300"
+      - key: LLM_DAILY_TOKEN_CAP
+        value: "1000000"
+      - key: LLM_DAILY_CAP_PER_USER
+        value: "100"
+      - key: APP_TZ
+        value: America/Lima
+      # Render agrega la IP real del cliente como último valor de X-Forwarded-For.
+      - key: TRUSTED_PROXY_HOPS
+        value: "1"
+      # Usuario para el docente: Render pedirá la contraseña al crear el Blueprint.
+      - key: DEMO_USER
+        value: docente
+      - key: DEMO_NOMBRE
+        value: Docente evaluador
+      - key: DEMO_ROL
+        value: admin
+      - key: DEMO_PASSWORD
+        sync: false
+
+databases:
+  - name: intelli-stock-db
+    plan: free
+    databaseName: intelli_stock
+    user: intelli_stock
+    postgresMajorVersion: "17"

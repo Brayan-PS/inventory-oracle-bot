@@ -18,10 +18,17 @@ import { Route as PrediccionRouteImport } from './routes/prediccion'
 import { Route as ReportesRouteImport } from './routes/reportes'
 import { Route as ReposicionRouteImport } from './routes/reposicion'
 import { Route as SimuladorRouteImport } from './routes/simulador'
+import { Route as TokensRouteImport } from './routes/tokens'
+import { Route as ApiAgentRunsRouteImport } from './routes/api.agent-runs'
 import { Route as ApiDecisionsRouteImport } from './routes/api.decisions'
+import { Route as ApiSupervisorRouteImport } from './routes/api.supervisor'
+import { Route as ApiTokenUsageRouteImport } from './routes/api.token-usage'
 import { Route as HealthReadyRouteImport } from './routes/health.ready'
 import { Route as ProductosIndexRouteImport } from './routes/productos.index'
 import { Route as ProductosSkuRouteImport } from './routes/productos.$sku'
+import { Route as ApiAuthLoginRouteImport } from './routes/api.auth.login'
+import { Route as ApiAuthLogoutRouteImport } from './routes/api.auth.logout'
+import { Route as ApiAuthMeRouteImport } from './routes/api.auth.me'
 import { Route as ApiDecisionsImportRouteImport } from './routes/api.decisions.import'
 
 const IndexRoute = IndexRouteImport.update({
@@ -69,9 +76,29 @@ const SimuladorRoute = SimuladorRouteImport.update({
   path: '/simulador',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TokensRoute = TokensRouteImport.update({
+  id: '/tokens',
+  path: '/tokens',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAgentRunsRoute = ApiAgentRunsRouteImport.update({
+  id: '/api/agent-runs',
+  path: '/api/agent-runs',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiDecisionsRoute = ApiDecisionsRouteImport.update({
   id: '/api/decisions',
   path: '/api/decisions',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSupervisorRoute = ApiSupervisorRouteImport.update({
+  id: '/api/supervisor',
+  path: '/api/supervisor',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiTokenUsageRoute = ApiTokenUsageRouteImport.update({
+  id: '/api/token-usage',
+  path: '/api/token-usage',
   getParentRoute: () => rootRouteImport,
 } as any)
 const HealthReadyRoute = HealthReadyRouteImport.update({
@@ -87,6 +114,21 @@ const ProductosIndexRoute = ProductosIndexRouteImport.update({
 const ProductosSkuRoute = ProductosSkuRouteImport.update({
   id: '/productos/$sku',
   path: '/productos/$sku',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthLoginRoute = ApiAuthLoginRouteImport.update({
+  id: '/api/auth/login',
+  path: '/api/auth/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthLogoutRoute = ApiAuthLogoutRouteImport.update({
+  id: '/api/auth/logout',
+  path: '/api/auth/logout',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthMeRoute = ApiAuthMeRouteImport.update({
+  id: '/api/auth/me',
+  path: '/api/auth/me',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiDecisionsImportRoute = ApiDecisionsImportRouteImport.update({
@@ -105,10 +147,17 @@ export interface FileRoutesByFullPath {
   '/reportes': typeof ReportesRoute
   '/reposicion': typeof ReposicionRoute
   '/simulador': typeof SimuladorRoute
+  '/tokens': typeof TokensRoute
+  '/api/agent-runs': typeof ApiAgentRunsRoute
   '/api/decisions': typeof ApiDecisionsRouteWithChildren
+  '/api/supervisor': typeof ApiSupervisorRoute
+  '/api/token-usage': typeof ApiTokenUsageRoute
   '/health/ready': typeof HealthReadyRoute
   '/productos/$sku': typeof ProductosSkuRoute
   '/productos/': typeof ProductosIndexRoute
+  '/api/auth/login': typeof ApiAuthLoginRoute
+  '/api/auth/logout': typeof ApiAuthLogoutRoute
+  '/api/auth/me': typeof ApiAuthMeRoute
   '/api/decisions/import': typeof ApiDecisionsImportRoute
 }
 export interface FileRoutesByTo {
@@ -121,10 +170,17 @@ export interface FileRoutesByTo {
   '/reportes': typeof ReportesRoute
   '/reposicion': typeof ReposicionRoute
   '/simulador': typeof SimuladorRoute
+  '/tokens': typeof TokensRoute
+  '/api/agent-runs': typeof ApiAgentRunsRoute
   '/api/decisions': typeof ApiDecisionsRouteWithChildren
+  '/api/supervisor': typeof ApiSupervisorRoute
+  '/api/token-usage': typeof ApiTokenUsageRoute
   '/health/ready': typeof HealthReadyRoute
   '/productos/$sku': typeof ProductosSkuRoute
   '/productos': typeof ProductosIndexRoute
+  '/api/auth/login': typeof ApiAuthLoginRoute
+  '/api/auth/logout': typeof ApiAuthLogoutRoute
+  '/api/auth/me': typeof ApiAuthMeRoute
   '/api/decisions/import': typeof ApiDecisionsImportRoute
 }
 export interface FileRoutesById {
@@ -138,10 +194,17 @@ export interface FileRoutesById {
   '/reportes': typeof ReportesRoute
   '/reposicion': typeof ReposicionRoute
   '/simulador': typeof SimuladorRoute
+  '/tokens': typeof TokensRoute
+  '/api/agent-runs': typeof ApiAgentRunsRoute
   '/api/decisions': typeof ApiDecisionsRouteWithChildren
+  '/api/supervisor': typeof ApiSupervisorRoute
+  '/api/token-usage': typeof ApiTokenUsageRoute
   '/health/ready': typeof HealthReadyRoute
   '/productos/$sku': typeof ProductosSkuRoute
   '/productos/': typeof ProductosIndexRoute
+  '/api/auth/login': typeof ApiAuthLoginRoute
+  '/api/auth/logout': typeof ApiAuthLogoutRoute
+  '/api/auth/me': typeof ApiAuthMeRoute
   '/api/decisions/import': typeof ApiDecisionsImportRoute
 }
 export interface FileRouteTypes {
@@ -156,10 +219,17 @@ export interface FileRouteTypes {
     | '/reportes'
     | '/reposicion'
     | '/simulador'
+    | '/tokens'
+    | '/api/agent-runs'
     | '/api/decisions'
+    | '/api/supervisor'
+    | '/api/token-usage'
     | '/health/ready'
     | '/productos/$sku'
     | '/productos/'
+    | '/api/auth/login'
+    | '/api/auth/logout'
+    | '/api/auth/me'
     | '/api/decisions/import'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -172,10 +242,17 @@ export interface FileRouteTypes {
     | '/reportes'
     | '/reposicion'
     | '/simulador'
+    | '/tokens'
+    | '/api/agent-runs'
     | '/api/decisions'
+    | '/api/supervisor'
+    | '/api/token-usage'
     | '/health/ready'
     | '/productos/$sku'
     | '/productos'
+    | '/api/auth/login'
+    | '/api/auth/logout'
+    | '/api/auth/me'
     | '/api/decisions/import'
   id:
     | '__root__'
@@ -188,10 +265,17 @@ export interface FileRouteTypes {
     | '/reportes'
     | '/reposicion'
     | '/simulador'
+    | '/tokens'
+    | '/api/agent-runs'
     | '/api/decisions'
+    | '/api/supervisor'
+    | '/api/token-usage'
     | '/health/ready'
     | '/productos/$sku'
     | '/productos/'
+    | '/api/auth/login'
+    | '/api/auth/logout'
+    | '/api/auth/me'
     | '/api/decisions/import'
   fileRoutesById: FileRoutesById
 }
@@ -205,10 +289,17 @@ export interface RootRouteChildren {
   ReportesRoute: typeof ReportesRoute
   ReposicionRoute: typeof ReposicionRoute
   SimuladorRoute: typeof SimuladorRoute
+  TokensRoute: typeof TokensRoute
+  ApiAgentRunsRoute: typeof ApiAgentRunsRoute
   ApiDecisionsRoute: typeof ApiDecisionsRouteWithChildren
+  ApiSupervisorRoute: typeof ApiSupervisorRoute
+  ApiTokenUsageRoute: typeof ApiTokenUsageRoute
   HealthReadyRoute: typeof HealthReadyRoute
   ProductosSkuRoute: typeof ProductosSkuRoute
   ProductosIndexRoute: typeof ProductosIndexRoute
+  ApiAuthLoginRoute: typeof ApiAuthLoginRoute
+  ApiAuthLogoutRoute: typeof ApiAuthLogoutRoute
+  ApiAuthMeRoute: typeof ApiAuthMeRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -276,11 +367,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SimuladorRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/tokens': {
+      id: '/tokens'
+      path: '/tokens'
+      fullPath: '/tokens'
+      preLoaderRoute: typeof TokensRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/agent-runs': {
+      id: '/api/agent-runs'
+      path: '/api/agent-runs'
+      fullPath: '/api/agent-runs'
+      preLoaderRoute: typeof ApiAgentRunsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/decisions': {
       id: '/api/decisions'
       path: '/api/decisions'
       fullPath: '/api/decisions'
       preLoaderRoute: typeof ApiDecisionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/supervisor': {
+      id: '/api/supervisor'
+      path: '/api/supervisor'
+      fullPath: '/api/supervisor'
+      preLoaderRoute: typeof ApiSupervisorRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/token-usage': {
+      id: '/api/token-usage'
+      path: '/api/token-usage'
+      fullPath: '/api/token-usage'
+      preLoaderRoute: typeof ApiTokenUsageRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/health/ready': {
@@ -302,6 +421,27 @@ declare module '@tanstack/react-router' {
       path: '/productos/$sku'
       fullPath: '/productos/$sku'
       preLoaderRoute: typeof ProductosSkuRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/login': {
+      id: '/api/auth/login'
+      path: '/api/auth/login'
+      fullPath: '/api/auth/login'
+      preLoaderRoute: typeof ApiAuthLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/logout': {
+      id: '/api/auth/logout'
+      path: '/api/auth/logout'
+      fullPath: '/api/auth/logout'
+      preLoaderRoute: typeof ApiAuthLogoutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/me': {
+      id: '/api/auth/me'
+      path: '/api/auth/me'
+      fullPath: '/api/auth/me'
+      preLoaderRoute: typeof ApiAuthMeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/decisions/import': {
@@ -336,10 +476,17 @@ const rootRouteChildren: RootRouteChildren = {
   ReportesRoute: ReportesRoute,
   ReposicionRoute: ReposicionRoute,
   SimuladorRoute: SimuladorRoute,
+  TokensRoute: TokensRoute,
+  ApiAgentRunsRoute: ApiAgentRunsRoute,
   ApiDecisionsRoute: ApiDecisionsRouteWithChildren,
+  ApiSupervisorRoute: ApiSupervisorRoute,
+  ApiTokenUsageRoute: ApiTokenUsageRoute,
   HealthReadyRoute: HealthReadyRoute,
   ProductosSkuRoute: ProductosSkuRoute,
   ProductosIndexRoute: ProductosIndexRoute,
+  ApiAuthLoginRoute: ApiAuthLoginRoute,
+  ApiAuthLogoutRoute: ApiAuthLogoutRoute,
+  ApiAuthMeRoute: ApiAuthMeRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

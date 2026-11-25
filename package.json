@@ -10,12 +10,21 @@
     "preview": "vite preview",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "db:migrate": "node scripts/db.mjs migrate",
-    "db:seed": "node scripts/db.mjs seed",
+    "db:migrate": "node --env-file-if-exists=.env scripts/db.mjs migrate",
+    "db:seed": "node --env-file-if-exists=.env scripts/db.mjs seed",
     "db:setup": "npm run db:migrate && npm run db:seed",
-    "test": "node --experimental-strip-types --test tests/inventory.test.mjs",
+    "test": "node --experimental-strip-types --test tests/inventory.test.mjs tests/catalogo.test.mjs tests/supervisor.test.mjs tests/seguridad.test.mjs",
     "test:e2e": "playwright test",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "db:backup": "node --env-file-if-exists=.env scripts/backup.mjs",
+    "medir": "node scripts/medir.mjs",
+    "local": "node --env-file-if-exists=.env scripts/local.mjs",
+    "local:prod": "node --env-file-if-exists=.env scripts/local.mjs --prod",
+    "local:reset": "node scripts/local.mjs --reset",
+    "test:integration": "node --env-file-if-exists=.env --test tests/integration/api.test.mjs",
+    "db:user": "node --env-file-if-exists=.env scripts/db.mjs user",
+    "db:respaldo": "node --env-file-if-exists=.env scripts/respaldo.mjs exportar",
+    "db:restaurar": "node --env-file-if-exists=.env scripts/respaldo.mjs restaurar"
   },
   "overrides": {
     "rolldown": "1.2.1"
@@ -84,6 +93,7 @@
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "@vitejs/plugin-react": "^5.2.0",
+    "embedded-postgres": "17.12.0-beta.19",
     "eslint": "^9.32.0",
     "eslint-config-prettier": "^10.1.1",
     "eslint-plugin-prettier": "^5.2.6",
