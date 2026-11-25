@@ -1,0 +1,18 @@
+# syntax=docker/dockerfile:1
+# Imagen para el despliegue en la nube (Render). Al arrancar aplica las migraciones,
+# carga la semilla si la base está vacía y luego inicia el servidor.
+FROM node:24.16.0-bookworm-slim
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+RUN npm ci --no-audit --no-fund
+
+COPY . .
+ENV NITRO_PRESET=node_server
+RUN npm run build && npm prune --omit=dev
+
+ENV NODE_ENV=production \
+    HOST=0.0.0.0
+USER node
+EXPOSE 10000
+CMD ["sh", "-c", "node scripts/db.mjs migrate && node scripts/db.mjs seed && node .output/server/index.mjs"]
