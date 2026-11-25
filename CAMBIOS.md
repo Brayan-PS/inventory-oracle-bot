@@ -1,5 +1,10 @@
 # Cambios — versión 3 (noviembre 2026)
 
+## v3.2 — Groq también cuando Gemini es lento
+- Cada llamada a un proveedor tiene su propio límite (`LLM_PROVIDER_TIMEOUT_MS`, 20 s). Si Gemini no responde a tiempo, la consulta pasa a Groq con el tiempo que queda (antes la lentitud de Gemini consumía los 45 s de la consulta y respondía el motor de reglas sin probar Groq).
+- `GEMINI_THINKING_LEVEL` (opcional, por ejemplo `low`) reduce la latencia de Gemini 3.
+- 2 pruebas nuevas (Gemini lento → Groq; nivel de razonamiento).
+
 ## v3.1 — Groq como respaldo de Gemini
 - `src/server/supervisor-llm.server.ts`: capa de proveedores. Gemini es el principal; si responde 429 (cuota), 400/401/403 (clave), 5xx (saturación) o hay error de red, **la misma consulta se repite con Groq** (`/openai/v1/chat/completions`, function calling) con los mismos agentes, memoria, límites y verificación de cifras.
 - Groq usa `llama-3.3-70b-versatile` y, si ese modelo está limitado, `openai/gpt-oss-120b`.

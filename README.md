@@ -32,7 +32,7 @@ Usuario ─► Supervisor (Gemini → Groq, function calling) ──► herramie
 
 - **Comunicación:** mensajes estructurados (`de`, `para`, `tipo`, `asunto`, `contenido`) en un bus (`src/lib/agents.ts`). Cada solicitud y respuesta queda en la traza.
 - **Memoria:** memoria de trabajo compartida por consulta (un dato pedido dos veces se responde de memoria) y memoria de conversación (los últimos 3 turnos se envían a Gemini).
-- **Proveedores:** Gemini es el principal. Si responde con cuota agotada (429), clave inválida, saturación o error de red, la misma consulta se repite con **Groq** (`llama-3.3-70b-versatile`, respaldo `openai/gpt-oss-120b`) con los mismos agentes y controles. Tras agotar la cuota, Gemini queda en pausa 15 min para no demorar cada consulta. Si los dos fallan, responde el motor de reglas. La traza indica qué proveedor respondió y por qué.
+- **Proveedores:** Gemini es el principal. Si responde con cuota agotada (429), clave inválida, saturación, error de red o **no responde en 20 s**, la misma consulta se repite con **Groq** (`llama-3.3-70b-versatile`, respaldo `openai/gpt-oss-120b`) con los mismos agentes y controles. Tras agotar la cuota, Gemini queda en pausa 15 min para no demorar cada consulta. Si los dos fallan, responde el motor de reglas. La traza indica qué proveedor respondió y por qué.
 - **Control:** máx. 6 llamadas a agentes, 45 s, 8192 tokens, reintento y modelos de respaldo; verificación de **todas** las cifras de la respuesta contra los datos de los agentes, con una ronda de corrección; si persisten cifras sin respaldo, responde el motor de reglas.
 - **Auditoría:** cada consulta se guarda en `agent_runs` (usuario, agentes, argumentos, mensajes entre agentes, verificación, tokens, costo y tiempo) y se ve en **Agentes IA** y **Uso de tokens**.
 
@@ -99,7 +99,7 @@ Ver `.env.example` (solo nombres y valores no secretos). Principales: `POSTGRES_
 ## Pruebas
 
 ```powershell
-npm.cmd test                 # 48 pruebas unitarias (cálculos, búsqueda, agentes, Supervisor con Gemini y Groq simulados, seguridad)
+npm.cmd test                 # 50 pruebas unitarias (cálculos, búsqueda, agentes, Supervisor con Gemini y Groq simulados, seguridad)
 npm.cmd run typecheck
 npm.cmd run lint
 npm.cmd run build

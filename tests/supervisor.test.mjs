@@ -587,3 +587,45 @@ test("Groq: argumentos mal formados no rompen el flujo y la corrección de cifra
   assert.equal(r.traza.llamadas.length, 2);
   assert.deepEqual(r.traza.verificacion?.noEncontrados, []);
 });
+
+test("Groq: si Gemini es lento (no responde dentro de su límite) la consulta pasa a Groq", async () => {
+  reiniciarPausaGemini();
+  const peticiones = [];
+  const groq = [
+    groqLlamada("calcular_reposicion", { producto: "café" }),
+    groqTexto("Comprar café\nComprar 210 unidades por S/ 3,885."),
+  ];
+  const fetchImpl = (url, init) => {
+    peticiones.push(url);
+    if (url.includes("generativelanguage")) {
+      // Gemini "colgado": solo termina cuando se aborta la llamada.
+      return new Promise((_res, rej) =>
+        init.signal.addEventListener("abort", () =>
+          rej(Object.assign(new Error("abort"), { name: "AbortError" })),
+        ),
+      );
+    }
+    return Promise.resolve(Response.json(groq.shift()));
+  };
+  const r = await runSupervisorLLM("¿Cuánto compro de café?", PRODUCTS, {
+    config: conGroq({ providerTimeoutMs: 80, timeoutMs: 5000 }),
+    fetchImpl,
+  });
+  assert.equal(r.traza.modo, "llm");
+  assert.equal(r.traza.proveedor, "groq");
+  assert.match(r.traza.modelo, /respaldo: Gemini no respondió en 0\.08 s/);
+  assert.equal(r.recomendacion?.cantidad, 210);
+  assert.ok(r.traza.ms < 2000);
+});
+
+test("Gemini 3: GEMINI_THINKING_LEVEL se envía como thinkingConfig.thinkingLevel", async () => {
+  reiniciarPausaGemini();
+  const { fetchImpl, peticiones } = fakeGemini([
+    texto("Aclaración\nSolo respondo sobre el inventario."),
+  ]);
+  await runSupervisorLLM("hola", PRODUCTS, {
+    config: { ...config(), thinkingLevel: "low" },
+    fetchImpl,
+  });
+  assert.deepEqual(peticiones[0].body.generationConfig.thinkingConfig, { thinkingLevel: "low" });
+});

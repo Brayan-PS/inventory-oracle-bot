@@ -47,11 +47,19 @@ export interface LlmConfig {
   /** Reintentos del mismo modelo ante saturación temporal (500/503). */
   maxRetries: number;
   maxToolCalls: number;
+  /** Tiempo máximo de TODA la consulta (todos los proveedores). */
   timeoutMs: number;
+  /**
+   * Tiempo máximo de CADA llamada a un proveedor. Si Gemini no responde a tiempo, la consulta
+   * pasa a Groq con el tiempo que queda (la lentitud cuenta como "no disponible").
+   */
+  providerTimeoutMs: number;
   maxOutputTokens: number;
   priceInPerM: number;
   priceOutPerM: number;
   thinkingBudget: number | undefined;
+  /** Nivel de razonamiento de Gemini 3 (low/medium/high). Vacío = valor por defecto del modelo. */
+  thinkingLevel: string | undefined;
   /** Minutos que Gemini queda en pausa tras agotar la cuota (429 en todos sus modelos). */
   pausaCuotaMin: number;
   /** Proveedor de respaldo (Groq, API compatible con OpenAI). */
@@ -85,6 +93,7 @@ export function configFromEnv(env: Record<string, string | undefined> = process.
     maxRetries: num(env["LLM_MAX_RETRIES"], 1),
     maxToolCalls: num(env["LLM_MAX_TOOL_CALLS"], 6),
     timeoutMs: num(env["LLM_TIMEOUT_MS"], 45000),
+    providerTimeoutMs: num(env["LLM_PROVIDER_TIMEOUT_MS"], 20000),
     maxOutputTokens: num(env["LLM_MAX_OUTPUT_TOKENS"], 8192),
     priceInPerM: num(env["LLM_PRICE_IN_PER_M"], 0.75),
     priceOutPerM: num(env["LLM_PRICE_OUT_PER_M"], 3.75),
@@ -92,6 +101,7 @@ export function configFromEnv(env: Record<string, string | undefined> = process.
       env["GEMINI_THINKING_BUDGET"] !== undefined && env["GEMINI_THINKING_BUDGET"] !== ""
         ? num(env["GEMINI_THINKING_BUDGET"], 0)
         : undefined,
+    thinkingLevel: env["GEMINI_THINKING_LEVEL"]?.trim() || undefined,
     pausaCuotaMin: num(env["GEMINI_PAUSA_CUOTA_MIN"], 15),
     groq: {
       apiKey: env["GROQ_API_KEY"] || undefined,
@@ -375,9 +385,11 @@ function proveedorGemini(config: LlmConfig, doFetch: typeof fetch): Proveedor {
           generationConfig: {
             temperature: 0.1,
             maxOutputTokens: config.maxOutputTokens,
-            ...(config.thinkingBudget !== undefined
-              ? { thinkingConfig: { thinkingBudget: config.thinkingBudget } }
-              : {}),
+            ...(config.thinkingLevel
+              ? { thinkingConfig: { thinkingLevel: config.thinkingLevel } }
+              : config.thinkingBudget !== undefined
+                ? { thinkingConfig: { thinkingBudget: config.thinkingBudget } }
+                : {}),
           },
         },
         signal,
@@ -669,12 +681,41 @@ export async function runSupervisorLLM(
     clearTimeout(timer);
   }
 
+  /**
+   * Ejecuta una llamada al proveedor con su propio límite de tiempo. Si vence el límite del
+   * proveedor (y no el de toda la consulta), se considera "no disponible" y se pasa al siguiente.
+   */
+  async function conLimite<T>(prov: Proveedor, fn: (signal: AbortSignal) => Promise<T>) {
+    const restante = config.timeoutMs - (Date.now() - t0);
+    const porProveedor = config.providerTimeoutMs < restante;
+    const limite = Math.max(0, porProveedor ? config.providerTimeoutMs : restante);
+    const ctrl = new AbortController();
+    let vencio = false;
+    const timer = setTimeout(() => {
+      vencio = porProveedor;
+      ctrl.abort();
+    }, limite);
+    const abortarTodo = () => ctrl.abort();
+    controller.signal.addEventListener("abort", abortarTodo);
+    try {
+      return await fn(ctrl.signal);
+    } catch (e) {
+      if (vencio && !controller.signal.aborted && e instanceof Error && e.name === "AbortError") {
+        throw new ProveedorNoDisponible(`${prov.nombre} no respondió en ${limite / 1000} s`);
+      }
+      throw e;
+    } finally {
+      clearTimeout(timer);
+      controller.signal.removeEventListener("abort", abortarTodo);
+    }
+  }
+
   /** Bucle de function calling con un proveedor. */
   async function ejecutar(prov: Proveedor, it: Intento): Promise<SupervisorReply> {
     const conv: Entrada[] = [...conversacionBase];
     const maxRondas = config.maxToolCalls + 3;
     for (let ronda = 0; ronda < maxRondas; ronda++) {
-      const resp = await prov.turno(conv, controller.signal);
+      const resp = await conLimite(prov, (signal) => prov.turno(conv, signal));
       it.tokensIn += resp.tokensIn;
       it.tokensOut += resp.tokensOut;
 
