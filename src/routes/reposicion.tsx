@@ -41,7 +41,7 @@ const prioridad = (p: Product) =>
         : "Baja";
 
 function Reposicion() {
-  const { pendientes, addDecision, decisions, pushLog } = useStore();
+  const { pendientes, addDecision, decisions, pushLog, puedeDecidir, usuario } = useStore();
   const [editando, setEditando] = useState<string | null>(null);
   const [cantidad, setCantidad] = useState(0);
 
@@ -144,7 +144,11 @@ function Reposicion() {
               {p.factores.slice(0, 3).join(" ")}
             </p>
 
-            {editando === p.sku ? (
+            {!puedeDecidir ? (
+              <p className="mt-4 font-mono text-[11px] text-warn">
+                ◆ Tu rol ({usuario.rol}) puede revisar las propuestas pero no aprobarlas.
+              </p>
+            ) : editando === p.sku ? (
               <div className="mt-4 flex flex-wrap gap-2">
                 <input
                   type="number"

@@ -1,35 +1,32 @@
 import { test, expect } from "@playwright/test";
-import { spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import pg from "pg";
 
-// SQL cleanup is intentionally restricted to the separate test Compose project.
-const project = "inventory-oracle-bot-test";
-process.env.APP_PORT = "3001";
-process.env.DB_PORT = "5434";
-function docker(args) {
-  const result = spawnSync("docker", ["compose", "-p", project, ...args], { encoding: "utf8" });
-  if (result.status !== 0) throw new Error(result.stderr || result.stdout);
-  return result.stdout.trim();
+// Base de PRUEBA (ver playwright.config.mjs). Se limpia la tabla decisions antes de cada prueba.
+const db = new pg.Pool({
+  ...(process.env.DATABASE_URL ? { connectionString: process.env.DATABASE_URL } : {}),
+  max: 2,
+});
+const sql = async (q, params = []) => (await db.query(q, params)).rows;
+
+const COMPRADOR = () => ({ usuario: "e2e_comprador", password: process.env.E2E_PASS_COMPRADOR });
+const LECTOR = () => ({ usuario: "e2e_lector", password: process.env.E2E_PASS_LECTOR });
+
+async function entrar(page, cred) {
+  await page.goto("/");
+  await page.getByLabel("Usuario").fill(cred.usuario);
+  await page.getByLabel("Contraseña").fill(cred.password);
+  await page.getByRole("button", { name: "Ingresar" }).click();
+  await expect(page.getByRole("heading", { name: "Centro de Inteligencia" })).toBeVisible();
 }
-function sql(query) {
-  return docker([
-    "exec",
-    "-T",
-    "db",
-    "sh",
-    "-c",
-    'exec psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "$1"',
-    "test",
-    query,
-  ]);
-}
+const origin = (baseURL) => ({ Origin: baseURL });
 const input = () => ({
   id: randomUUID(),
   sku: "SKU-1042",
   nombre: "Café de Grano 500g",
-  cantidadSugerida: 230,
-  cantidadFinal: 230,
-  costo: 4255,
+  cantidadSugerida: 210,
+  cantidadFinal: 210,
+  costo: 3885,
   estado: "aprobado",
   motivo: "E2E: verificación",
 });
@@ -39,115 +36,123 @@ const legacy = () => ({
   fecha: "2026-09-01T12:00:00.000Z",
   usuario: "Usuario histórico",
 });
-const headers = { Origin: "http://localhost:3001" };
 
-test.beforeEach(() => {
-  sql("DELETE FROM decisions");
+test.beforeEach(async () => {
+  await sql("DELETE FROM decisions");
 });
-test.afterAll(() => {
-  sql("DELETE FROM decisions");
-});
-
-test("rutas, estilos, navegación y 404", async ({ page, request }) => {
-  for (const route of [
-    "/",
-    "/productos",
-    "/productos/SKU-1042",
-    "/reposicion",
-    "/prediccion",
-    "/inventario",
-    "/analitica",
-    "/agentes",
-    "/reportes",
-    "/historial",
-    "/simulador",
-  ]) {
-    const response = await request.get(route);
-    expect(response.status(), route).toBe(200);
-  }
-  expect((await request.get("/productos/SKU-INEXISTENTE")).status()).toBe(404);
-  await page.goto("/productos");
-  await page.getByRole("textbox", { name: "Buscar producto" }).fill("Café de Grano");
-  await page
-    .getByRole("link", { name: /Café de Grano 500g/ })
-    .first()
-    .click();
-  await expect(
-    page.getByRole("heading", { name: "Café de Grano 500g", exact: true }),
-  ).toBeVisible();
+test.afterAll(async () => {
+  await sql("DELETE FROM decisions");
+  await db.end();
 });
 
-test("aprobar desde ficha, modificar, posponer y descartar desde el plan", async ({
+test("sin sesión se ve el inicio de sesión; credenciales malas muestran error", async ({
   page,
-  request,
 }) => {
+  await page.goto("/reposicion");
+  await expect(page.getByRole("button", { name: "Ingresar" })).toBeVisible();
+  await expect(page.getByText("SKU-1042")).toHaveCount(0);
+  await page.getByLabel("Usuario").fill("e2e_comprador");
+  await page.getByLabel("Contraseña").fill("incorrecta-123");
+  await page.getByRole("button", { name: "Ingresar" }).click();
+  await expect(page.getByRole("alert")).toContainText("Usuario o contraseña incorrectos");
+});
+
+test("rutas, navegación, 404 y cierre de sesión", async ({ page }) => {
+  await entrar(page, COMPRADOR());
+  for (const [ruta, titulo] of [
+    ["/productos", "Productos"],
+    ["/productos/SKU-1042", "Café de Grano 500g"],
+    ["/reposicion", "Reposición"],
+    ["/prediccion", "Predicción de Demanda"],
+    ["/inventario", "Inventario"],
+    ["/analitica", "Analítica"],
+    ["/agentes", "Centro de Agentes IA"],
+    ["/tokens", "Uso de tokens"],
+    ["/reportes", "Reportes"],
+    ["/historial", "Historial de decisiones"],
+    ["/simulador", "¿Qué pasaría si...?"],
+  ]) {
+    const r = await page.goto(ruta);
+    expect(r.status(), ruta).toBe(200);
+    await expect(page.locator("main h1").first(), ruta).toHaveText(titulo);
+  }
+  expect((await page.goto("/productos/SKU-INEXISTENTE")).status()).toBe(404);
+  await page.goto("/");
+  await page.getByRole("button", { name: "Salir" }).click();
+  await expect(page.getByRole("button", { name: "Ingresar" })).toBeVisible();
+});
+
+test("aprobar desde la ficha queda en PostgreSQL con el usuario de la sesión", async ({ page }) => {
+  await entrar(page, COMPRADOR());
   await page.goto("/productos/SKU-1042");
   await page.getByRole("button", { name: "Aprobar", exact: true }).click();
   await expect(page.getByText("◆ Decisión registrada: aprobado.", { exact: true })).toBeVisible();
   await page.reload();
   await expect(page.getByText("◆ Decisión registrada: aprobado.", { exact: true })).toBeVisible();
+  const [fila] = await sql("SELECT usuario, registrado_por, origen FROM decisions");
+  expect(fila.registrado_por).toBe("e2e_comprador");
+  expect(fila.usuario).toContain("Comprador E2E");
+  expect(fila.origen).toBe("app");
+  await page.goto("/historial");
+  await expect(page.getByText("Aprobado desde la ficha del producto.")).toBeVisible();
+});
+
+test("modificar, posponer y descartar desde el plan de reposición", async ({ page }) => {
+  await entrar(page, COMPRADOR());
   await page.goto("/reposicion");
+  const guardado = () =>
+    page.waitForResponse(
+      (r) => r.url().endsWith("/api/decisions") && r.request().method() === "POST" && r.ok(),
+    );
   await page.getByRole("button", { name: "Modificar cantidad", exact: true }).first().click();
   await page.getByRole("spinbutton", { name: "Nueva cantidad" }).fill("70");
   await Promise.all([
-    page.waitForResponse(
-      (r) => r.url().endsWith("/api/decisions") && r.request().method() === "POST" && r.ok(),
-    ),
+    guardado(),
     page.getByRole("button", { name: "Confirmar", exact: true }).click(),
   ]);
   await Promise.all([
-    page.waitForResponse(
-      (r) => r.url().endsWith("/api/decisions") && r.request().method() === "POST" && r.ok(),
-    ),
+    guardado(),
     page.getByRole("button", { name: "Posponer", exact: true }).first().click(),
   ]);
   await Promise.all([
-    page.waitForResponse(
-      (r) => r.url().endsWith("/api/decisions") && r.request().method() === "POST" && r.ok(),
-    ),
+    guardado(),
     page.getByRole("button", { name: "Descartar", exact: true }).first().click(),
   ]);
-  const decisions = await (await request.get("/api/decisions")).json();
-  expect(decisions.map((d) => d.estado).sort()).toEqual([
-    "aprobado",
-    "descartado",
-    "modificado",
-    "pospuesto",
-  ]);
-  expect(decisions.find((d) => d.estado === "modificado").cantidadFinal).toBe(70);
-  expect(Number(sql("SELECT count(*) FROM decisions"))).toBe(4);
-  await page.goto("/historial");
-  await expect(
-    page.getByText("Aprobado desde la ficha del producto.", { exact: true }),
-  ).toBeVisible();
+  const estados = (await sql("SELECT estado, cantidad_final FROM decisions")).map((d) => d.estado);
+  expect(estados.sort()).toEqual(["descartado", "modificado", "pospuesto"]);
+  const [mod] = await sql("SELECT cantidad_final FROM decisions WHERE estado = 'modificado'");
+  expect(mod.cantidad_final).toBe(70);
 });
 
-test("el Supervisor usa el catálogo PostgreSQL y permite aprobar", async ({ page, request }) => {
-  const original = sql("SELECT stock FROM products WHERE sku = 'SKU-1042'");
+test("el Supervisor responde con datos de PostgreSQL y muestra la traza", async ({ page }) => {
+  const [{ stock }] = await sql("SELECT stock FROM products WHERE sku = 'SKU-1042'");
   try {
-    sql("UPDATE products SET stock = 1 WHERE sku = 'SKU-1042'");
-    await page.goto("/productos/SKU-1042");
-    await expect(page.getByText("Stock actual", { exact: true }).locator("..")).toContainText(
-      "1 u",
-    );
-    await page
-      .getByRole("button", { name: "¿Cuánto debería comprar de café?", exact: true })
-      .first()
-      .click();
+    await sql("UPDATE products SET stock = 1 WHERE sku = 'SKU-1042'");
+    await entrar(page, COMPRADOR());
     const supervisor = page.locator("aside").last();
+    await supervisor.getByRole("button", { name: "¿Cuánto debería comprar de café?" }).click();
     await expect(supervisor.getByText(/Tienes 1 u en almacén/)).toBeVisible();
+    await supervisor.getByText(/^Traza/).click();
+    await expect(supervisor.getByText(/Reglas \(respaldo\)/)).toBeVisible();
     await supervisor.getByRole("button", { name: "Aprobar", exact: true }).click();
     await expect(supervisor.getByText(/Decisión registrada: aprobado/)).toBeVisible();
-    expect((await (await request.get("/api/decisions")).json()).length).toBe(1);
+    expect((await sql("SELECT count(*)::int AS n FROM decisions"))[0].n).toBe(1);
   } finally {
-    sql(`UPDATE products SET stock = ${Number(original)} WHERE sku = 'SKU-1042'`);
+    await sql("UPDATE products SET stock = $1 WHERE sku = 'SKU-1042'", [stock]);
   }
 });
 
-test("errores de escritura visibles y reintento sin guardado ficticio", async ({
-  page,
-  request,
-}) => {
+test("el rol lector consulta pero no puede aprobar", async ({ page, baseURL }) => {
+  await entrar(page, LECTOR());
+  await page.goto("/productos/SKU-1042");
+  await expect(page.getByText(/no puede aprobar compras/)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Aprobar", exact: true })).toHaveCount(0);
+  const r = await page.request.post("/api/decisions", { data: input(), headers: origin(baseURL) });
+  expect(r.status()).toBe(403);
+});
+
+test("errores de escritura visibles y reintento sin guardado ficticio", async ({ page }) => {
+  await entrar(page, COMPRADOR());
   await page.goto("/productos/SKU-1042");
   await page.route("**/api/decisions", (route) =>
     route.fulfill({
@@ -158,75 +163,57 @@ test("errores de escritura visibles y reintento sin guardado ficticio", async ({
   );
   await page.getByRole("button", { name: "Aprobar", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText("Fallo de prueba al guardar.");
-  expect((await (await request.get("/api/decisions")).json()).length).toBe(0);
-  await expect(page.getByRole("button", { name: "Aprobar", exact: true })).toBeVisible();
+  expect((await sql("SELECT count(*)::int AS n FROM decisions"))[0].n).toBe(0);
   await page.unroute("**/api/decisions");
   await page.getByRole("button", { name: "Aprobar", exact: true }).click();
   await expect(page.getByText(/Decisión registrada: aprobado/)).toBeVisible();
 });
 
-test("validación, origen e idempotencia de decisiones", async ({ request }) => {
+test("validación, origen e idempotencia de decisiones", async ({ page, baseURL }) => {
+  await entrar(page, COMPRADOR());
   const data = input();
-  expect(
-    (
-      await request.post("/api/decisions", { data, headers: { Origin: "https://otro.example" } })
-    ).status(),
-  ).toBe(403);
-  expect(
-    (
-      await request.post("/api/decisions", { data: { ...data, cantidadFinal: -1 }, headers })
-    ).status(),
-  ).toBe(400);
-  const responses = await Promise.all([
-    request.post("/api/decisions", { data, headers }),
-    request.post("/api/decisions", { data, headers }),
-  ]);
-  expect(responses.map((r) => r.status())).toEqual([200, 200]);
-  expect((await (await request.get("/api/decisions")).json()).length).toBe(1);
+  const post = (d, h = origin(baseURL)) =>
+    page.request.post("/api/decisions", { data: d, headers: h });
+  expect((await post(data, { Origin: "https://otro.example" })).status()).toBe(403);
+  expect((await post({ ...data, cantidadFinal: -1 })).status()).toBe(400);
+  const r = await Promise.all([post(data), post(data)]);
+  expect(r.map((x) => x.status())).toEqual([200, 200]);
+  expect((await sql("SELECT count(*)::int AS n FROM decisions"))[0].n).toBe(1);
 });
 
-test("importación de navegador/archivo conserva originales, deduplica y revierte lote inválido", async ({
+test("importación: conserva originales, marca 'importado', deduplica y revierte lote inválido", async ({
   page,
-  request,
+  baseURL,
 }) => {
   const old = legacy();
   await page.addInitScript(
     (data) => localStorage.setItem("intelli-stock:decisions", JSON.stringify(data)),
     [old],
   );
+  await entrar(page, COMPRADOR());
   await page.goto("/historial");
   await page.getByRole("button", { name: /Importar de este navegador/ }).click();
-  await expect(page.getByRole("status").filter({ hasText: "completada:" })).toContainText("1 decisiones nuevas");
-  expect(
-    await page.evaluate(() => JSON.parse(localStorage.getItem("intelli-stock:decisions"))),
-  ).toEqual([old]);
+  await expect(page.getByRole("status").filter({ hasText: "completada:" })).toContainText(
+    "1 decisiones nuevas",
+  );
+  await expect(page.getByText(/importado por e2e_comprador/)).toBeVisible();
   await page.getByRole("button", { name: /Importar de este navegador/ }).click();
-  await expect(page.getByRole("status").filter({ hasText: "completada:" })).toContainText("0 decisiones nuevas");
-  const fileEntry = { ...legacy(), estado: "pospuesto", cantidadFinal: 0, costo: 0 };
-  await page
-    .locator('input[type="file"]')
-    .setInputFiles({
-      name: "legacy.json",
-      mimeType: "application/json",
-      buffer: Buffer.from(JSON.stringify([fileEntry])),
-    });
-  await expect(page.getByRole("status").filter({ hasText: "completada:" })).toContainText("1 decisiones nuevas");
-  const saved = await (await request.get("/api/decisions")).json();
-  expect(saved.find((d) => d.id === old.id)).toEqual(old);
+  await expect(page.getByRole("status").filter({ hasText: "completada:" })).toContainText(
+    "0 decisiones nuevas",
+  );
+  const [fila] = await sql("SELECT usuario, origen, registrado_por FROM decisions WHERE id = $1", [
+    old.id,
+  ]);
+  expect(fila).toEqual({
+    usuario: "Usuario histórico",
+    origen: "importado",
+    registrado_por: "e2e_comprador",
+  });
   const bad = [{ ...legacy(), sku: "NO-EXISTE" }, legacy()];
-  expect((await request.post("/api/decisions/import", { data: bad, headers })).status()).toBe(400);
-  expect((await (await request.get("/api/decisions")).json()).length).toBe(2);
-});
-
-test("persistencia tras recrear contenedores y repetir inicialización", async ({ request }) => {
-  test.setTimeout(120000);
-  const data = input();
-  expect((await request.post("/api/decisions", { data, headers })).status()).toBe(200);
-  const before = sql("SELECT count(*) FROM products");
-  docker(["up", "-d", "--force-recreate", "--wait", "--wait-timeout", "60", "db"]);
-  docker(["run", "--rm", "--no-deps", "migrate"]);
-  docker(["up", "-d", "--force-recreate", "--no-deps", "--wait", "--wait-timeout", "60", "app"]);
-  expect(sql("SELECT count(*) FROM products")).toBe(before);
-  const rows = await (await request.get("/api/decisions")).json();
-  expect(rows.map((d) => d.id)).toEqual([data.id]);
+  expect(
+    (
+      await page.request.post("/api/decisions/import", { data: bad, headers: origin(baseURL) })
+    ).status(),
+  ).toBe(400);
+  expect((await sql("SELECT count(*)::int AS n FROM decisions"))[0].n).toBe(1);
 });

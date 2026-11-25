@@ -12,6 +12,25 @@ services:
       PGDATABASE: ${POSTGRES_DB:-intelli_stock}
       PGUSER: ${POSTGRES_USER:-intelli_stock}
       PGPASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD in .env}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.8-flash}
+      GEMINI_FALLBACK_MODELS: ${GEMINI_FALLBACK_MODELS:-gemini-3.5-flash,gemini-3.1-flash-lite}
+      GEMINI_THINKING_BUDGET: ${GEMINI_THINKING_BUDGET:-}
+      GEMINI_PAUSA_CUOTA_MIN: ${GEMINI_PAUSA_CUOTA_MIN:-15}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GROQ_MODEL: ${GROQ_MODEL:-llama-3.3-70b-versatile}
+      GROQ_FALLBACK_MODELS: ${GROQ_FALLBACK_MODELS:-openai/gpt-oss-120b}
+      LLM_MAX_TOOL_CALLS: ${LLM_MAX_TOOL_CALLS:-6}
+      LLM_TIMEOUT_MS: ${LLM_TIMEOUT_MS:-45000}
+      LLM_MAX_OUTPUT_TOKENS: ${LLM_MAX_OUTPUT_TOKENS:-8192}
+      LLM_RATE_PER_MIN: ${LLM_RATE_PER_MIN:-10}
+      LLM_DAILY_CAP: ${LLM_DAILY_CAP:-300}
+      LLM_DAILY_TOKEN_CAP: ${LLM_DAILY_TOKEN_CAP:-1000000}
+      LLM_DAILY_CAP_PER_USER: ${LLM_DAILY_CAP_PER_USER:-100}
+      SESSION_HOURS: ${SESSION_HOURS:-8}
+      # En Docker local no hay proxy delante: no se confía en X-Forwarded-For.
+      TRUSTED_PROXY_HOPS: ${TRUSTED_PROXY_HOPS:-0}
+      APP_TZ: ${APP_TZ:-America/Lima}
     depends_on:
       db:
         condition: service_healthy
@@ -39,6 +58,10 @@ services:
       PGDATABASE: ${POSTGRES_DB:-intelli_stock}
       PGUSER: ${POSTGRES_USER:-intelli_stock}
       PGPASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD in .env}
+      DEMO_USER: ${DEMO_USER:-}
+      DEMO_PASSWORD: ${DEMO_PASSWORD:-}
+      DEMO_NOMBRE: ${DEMO_NOMBRE:-Docente evaluador}
+      DEMO_ROL: ${DEMO_ROL:-admin}
     depends_on:
       db:
         condition: service_healthy

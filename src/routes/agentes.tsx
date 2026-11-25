@@ -1,10 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
 import { Kpi, Panel, PanelHead, Tag } from "@/components/kit";
-import { AGENTS, AGENT_BY_ID, type AgentId } from "@/lib/supervisor";
-import { MODEL_METRICS } from "@/lib/inventory";
-import { useInventory } from "@/lib/store";
-import { useStore } from "@/lib/store";
+import { AGENTS, AGENT_BY_ID, type AgentId, type AgentMessage } from "@/lib/supervisor";
+import { TOOLS } from "@/lib/agents";
+import { computeModelMetrics } from "@/lib/inventory";
+import { useEffect, useMemo, useState } from "react";
+import { useInventory, useStore } from "@/lib/store";
 
 export const Route = createFileRoute("/agentes")({
   head: () => ({
@@ -25,78 +26,106 @@ export const Route = createFileRoute("/agentes")({
   component: Agentes,
 });
 
-const LOG_DEMO: { hora: string; agente: AgentId; texto: string }[] = [
-  {
-    hora: "19:42:03",
-    agente: "supervisor",
-    texto: 'Recibió consulta: "¿Qué productos debo reponer esta semana?"',
-  },
-  {
-    hora: "19:42:04",
-    agente: "ventas",
-    texto: "Ejecutó consultar_ventas() y analizar_rotacion() sobre 30 SKUs.",
-  },
-  {
-    hora: "19:42:09",
-    agente: "predictor",
-    texto: "Ejecutó predecir_demanda() con LightGBM v2.4, horizonte 30 días.",
-  },
-  {
-    hora: "19:43:01",
-    agente: "inventario",
-    texto: "Ejecutó consultar_inventario(): stock, mínimo y cobertura.",
-  },
-  {
-    hora: "19:43:12",
-    agente: "predictor",
-    texto: "Ejecutó calcular_riesgo_stock(): 12 SKUs en riesgo crítico.",
-  },
-  {
-    hora: "19:43:20",
-    agente: "reposicion",
-    texto: "Ejecutó calcular_reposicion(): cantidades y momentos de pedido.",
-  },
-  {
-    hora: "19:43:26",
-    agente: "supervisor",
-    texto: "Generó respuesta explicada y la envió al encargado de compras.",
-  },
-];
+interface AgentRun {
+  id: string;
+  fecha: string;
+  consulta: string;
+  modo: "llm" | "reglas";
+  modelo: string;
+  motivo: string | null;
+  llamadas: { agente: AgentId; herramienta: string; resumen: string }[];
+  mensajes?: AgentMessage[];
+  correccion?: boolean;
+  usuario?: string | null;
+  tokensEntrada: number;
+  tokensSalida: number;
+  duracionMs: number;
+}
+
+const horaDe = (iso: string) =>
+  new Date(iso).toLocaleTimeString("es-PE", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
 
 function Agentes() {
   const { METRICS, PRODUCTS } = useInventory();
+  const MM = useMemo(() => computeModelMetrics(PRODUCTS), [PRODUCTS]);
+  const { log } = useStore();
+  const [runs, setRuns] = useState<AgentRun[]>([]);
+  const [errorRuns, setErrorRuns] = useState(false);
+
+  useEffect(() => {
+    let vivo = true;
+    const cargar = () =>
+      fetch("/api/agent-runs?limit=100")
+        .then((r) => (r.ok ? r.json() : Promise.reject(new Error("HTTP"))))
+        .then((data: AgentRun[]) => {
+          if (vivo) {
+            setRuns(data);
+            setErrorRuns(false);
+          }
+        })
+        .catch(() => vivo && setErrorRuns(true));
+    void cargar();
+    const t = setInterval(cargar, 10000);
+    return () => {
+      vivo = false;
+      clearInterval(t);
+    };
+  }, [log.length]);
+
+  const llamadas = runs.flatMap((r) => r.llamadas.map((l) => ({ ...l, fecha: r.fecha })));
+  // Colaboración: solicitudes entre agentes (sin contar las del Supervisor).
+  const entreAgentes = runs.flatMap((r) =>
+    (r.mensajes ?? []).filter(
+      (m) => m.tipo === "solicitud" && m.de !== "supervisor" && m.para !== "supervisor",
+    ),
+  );
+  const pares = Object.entries(
+    entreAgentes.reduce<Record<string, number>>((acc, m) => {
+      const k = `${m.de}>${m.para}`;
+      acc[k] = (acc[k] ?? 0) + 1;
+      return acc;
+    }, {}),
+  ).sort((a, b) => b[1] - a[1]);
+  const porAgente = (id: AgentId) => llamadas.filter((l) => l.agente === id);
+  const conLLM = runs.filter((r) => r.modo === "llm").length;
   const RESULTADOS: Record<AgentId, { tareas: number; resumen: string; ultima: string }> = {
     supervisor: {
-      tareas: 128,
-      resumen: `Consolidó ${METRICS.pedidosPendientes} recomendaciones de compra y las priorizó por riesgo.`,
-      ultima: "hace 1 min",
+      tareas: runs.length,
+      resumen: `Coordinó ${runs.length} consultas registradas (${conLLM} con LLM).`,
+      ultima: runs[0] ? horaDe(runs[0].fecha) : "sin registros",
     },
     ventas: {
-      tareas: 342,
-      resumen: `Analizó ${METRICS.ventas30.toLocaleString("es-PE")} unidades vendidas en 30 días sobre ${METRICS.totalSkus} SKUs.`,
-      ultima: "hace 2 min",
+      tareas: porAgente("ventas").length,
+      resumen: `Datos de ${METRICS.ventas30.toLocaleString("es-PE")} unidades vendidas en 30 días sobre ${METRICS.totalSkus} SKUs.`,
+      ultima: porAgente("ventas")[0] ? horaDe(porAgente("ventas")[0]!.fecha) : "sin registros",
     },
     predictor: {
-      tareas: 210,
-      resumen: `Forecast a 7/14/30 días con ${MODEL_METRICS.precision}% de precisión (WAPE ${MODEL_METRICS.wape}%).`,
-      ultima: "hace 2 min",
+      tareas: porAgente("predictor").length,
+      resumen: `Pronóstico 7/14/30 días; backtest: WAPE ${MM.wape}% sobre historial simulado.`,
+      ultima: porAgente("predictor")[0]
+        ? horaDe(porAgente("predictor")[0]!.fecha)
+        : "sin registros",
     },
     inventario: {
-      tareas: 415,
-      resumen: `Detectó ${PRODUCTS.filter((p) => p.stock < p.stockMin).length} productos por debajo del stock mínimo.`,
-      ultima: "hace 3 min",
+      tareas: porAgente("inventario").length,
+      resumen: `${PRODUCTS.filter((p) => p.stock < p.stockMin).length} productos por debajo del stock mínimo.`,
+      ultima: porAgente("inventario")[0]
+        ? horaDe(porAgente("inventario")[0]!.fecha)
+        : "sin registros",
     },
     reposicion: {
-      tareas: 96,
-      resumen: `Calculó ${METRICS.pedidosPendientes} pedidos por ${METRICS.costoPendiente.toLocaleString("es-PE")} soles.`,
-      ultima: "hace 1 min",
+      tareas: porAgente("reposicion").length,
+      resumen: `${METRICS.pedidosPendientes} pedidos sugeridos por ${METRICS.costoPendiente.toLocaleString("es-PE")} soles.`,
+      ultima: porAgente("reposicion")[0]
+        ? horaDe(porAgente("reposicion")[0]!.fecha)
+        : "sin registros",
     },
   };
-
-  const { log } = useStore();
-  const registro = log.length
-    ? log.map((l) => ({ hora: l.hora, agente: l.agente, texto: l.texto }))
-    : LOG_DEMO.slice().reverse();
 
   return (
     <AppShell
@@ -111,15 +140,16 @@ function Agentes() {
           hint="Supervisor + 4 especializados"
         />
         <Kpi
-          label="Herramientas expuestas"
-          value={7}
+          label="Consultas registradas"
+          value={runs.length}
           tone="info"
-          hint="Function calling autorizado"
+          hint={`${conLLM} con LLM · ${runs.length - conLLM} por reglas`}
           delay={40}
         />
         <Kpi
-          label="Tareas ejecutadas hoy"
-          value={Object.values(RESULTADOS).reduce((a, r) => a + r.tareas, 0)}
+          label="Llamadas a agentes"
+          value={llamadas.length}
+          hint="Function calling (tabla agent_runs)"
           delay={80}
         />
         <Kpi
@@ -201,50 +231,123 @@ function Agentes() {
       <section className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         <Panel className="xl:col-span-2" delay={100}>
           <PanelHead
-            title="Registro de actividad"
+            title="Registro de auditoría (PostgreSQL · agent_runs)"
             subtitle={
-              log.length
-                ? "Ejecuciones reales de esta sesión"
-                : "Última ejecución registrada del sistema"
+              errorRuns
+                ? "No se pudo leer el registro del servidor"
+                : `Últimas ${runs.length} consultas reales al Supervisor`
             }
           />
-          <div className="max-h-[360px] divide-y divide-line/70 overflow-y-auto">
-            {registro.map((l, i) => (
-              <div key={i} className="flex items-start gap-3 px-5 py-2.5">
-                <span className="font-mono text-[11px] text-muted-foreground">{l.hora}</span>
-                <span className="grid size-5 shrink-0 place-items-center rounded-full bg-info/15 text-[10px] font-bold text-info">
-                  {AGENT_BY_ID[l.agente].inicial}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-[13px]">
-                    <span className="font-medium">{AGENT_BY_ID[l.agente].corto}</span> — {l.texto}
-                  </p>
+          <div className="max-h-[420px] divide-y divide-line/70 overflow-y-auto">
+            {runs.length === 0 && (
+              <p className="px-5 py-4 text-[13px] text-muted-foreground">
+                Aún no hay consultas registradas. Haz una pregunta en el panel del Supervisor.
+              </p>
+            )}
+            {runs.map((r) => (
+              <div key={r.id} className="space-y-1 px-5 py-3">
+                <div className="flex flex-wrap items-center gap-2 text-[13px]">
+                  <span className="font-mono text-[11px] text-muted-foreground">
+                    {horaDe(r.fecha)}
+                  </span>
+                  <Tag tone={r.modo === "llm" ? "good" : "warn"}>
+                    {r.modo === "llm" ? "LLM" : "Reglas"}
+                  </Tag>
+                  <span className="font-medium">“{r.consulta}”</span>
+                  {r.correccion && <Tag tone="info">cifras corregidas</Tag>}
+                  {r.usuario && (
+                    <span className="font-mono text-[11px] text-muted-foreground">
+                      · {r.usuario}
+                    </span>
+                  )}
                 </div>
+                <p className="font-mono text-[11px] text-muted-foreground">
+                  {r.llamadas.length
+                    ? r.llamadas
+                        .map((l) => `${AGENT_BY_ID[l.agente].corto} → ${l.herramienta}`)
+                        .join(" · ")
+                    : "Sin llamadas a agentes"}{" "}
+                  · {(r.duracionMs / 1000).toFixed(1)} s · {r.tokensEntrada + r.tokensSalida} tokens
+                  {r.motivo ? ` · respaldo: ${r.motivo}` : ""}
+                </p>
+                {r.mensajes && r.mensajes.length > 0 && (
+                  <details className="font-mono text-[11px] text-muted-foreground">
+                    <summary className="cursor-pointer text-info">
+                      {r.mensajes.length} mensajes entre agentes
+                    </summary>
+                    <ol className="mt-1 space-y-0.5">
+                      {r.mensajes.map((m) => (
+                        <li key={m.n}>
+                          {m.n}. {AGENT_BY_ID[m.de].corto} → {AGENT_BY_ID[m.para].corto} [{m.tipo}]{" "}
+                          {m.asunto}: {m.contenido}
+                        </li>
+                      ))}
+                    </ol>
+                  </details>
+                )}
               </div>
             ))}
           </div>
+          {log.length > 0 && (
+            <>
+              <PanelHead
+                title="Actividad de esta sesión"
+                subtitle="Pasos mostrados en el panel del Supervisor"
+              />
+              <div className="max-h-[240px] divide-y divide-line/70 overflow-y-auto">
+                {log.map((l) => (
+                  <div key={l.id} className="flex items-start gap-3 px-5 py-2.5">
+                    <span className="font-mono text-[11px] text-muted-foreground">{l.hora}</span>
+                    <span className="grid size-5 shrink-0 place-items-center rounded-full bg-info/15 text-[10px] font-bold text-info">
+                      {AGENT_BY_ID[l.agente].inicial}
+                    </span>
+                    <p className="min-w-0 flex-1 text-[13px]">
+                      <span className="font-medium">{AGENT_BY_ID[l.agente].corto}</span> — {l.texto}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </Panel>
 
         <Panel className="p-5" delay={140}>
           <h2 className="font-display font-semibold tracking-tight">Herramientas autorizadas</h2>
           <p className="font-mono text-[11px] text-muted-foreground">
-            Function calling con permisos acotados
+            Las {TOOLS.length} funciones que el LLM (Gemini o Groq) puede invocar (solo lectura)
           </p>
           <div className="mt-3 space-y-2">
-            {[
-              ["consultar_ventas()", "Obtiene ventas históricas."],
-              ["consultar_inventario()", "Obtiene stock y stock mínimo."],
-              ["analizar_rotacion()", "Calcula rotación y tendencias."],
-              ["predecir_demanda()", "Ejecuta el modelo de Machine Learning."],
-              ["calcular_riesgo_stock()", "Determina el nivel de riesgo de quiebre."],
-              ["calcular_reposicion()", "Calcula cantidad y momento sugeridos."],
-              ["generar_reporte()", "Genera un resumen para el usuario."],
-            ].map(([fn, desc]) => (
+            {TOOLS.map((t) => [
+              `${t.name}()`,
+              `${AGENT_BY_ID[t.agente].corto}: ${t.description.split(". ").slice(1).join(". ") || t.description}`,
+            ]).map(([fn, desc]) => (
               <div key={fn} className="rounded-lg bg-surface-2 p-2.5">
                 <p className="font-mono text-[12px] text-info">{fn}</p>
                 <p className="text-[12px] text-muted-foreground">{desc}</p>
               </div>
             ))}
+          </div>
+          <div className="mt-4 border-t border-line pt-4">
+            <h3 className="font-display text-[13px] font-semibold">Colaboración entre agentes</h3>
+            <p className="font-mono text-[11px] text-muted-foreground">
+              Solicitudes que un agente hizo a otro en las consultas registradas
+            </p>
+            <div className="mt-2 space-y-1">
+              {pares.length === 0 && (
+                <p className="text-[12px] text-muted-foreground">Sin registros todavía.</p>
+              )}
+              {pares.map(([k, n]) => {
+                const [de, para] = k.split(">") as [AgentId, AgentId];
+                return (
+                  <p key={k} className="flex justify-between text-[12px]">
+                    <span>
+                      {AGENT_BY_ID[de].corto} → {AGENT_BY_ID[para].corto}
+                    </span>
+                    <span className="font-mono text-info">{n}</span>
+                  </p>
+                );
+              })}
+            </div>
           </div>
           <p className="mt-4 border-t border-line pt-4 font-mono text-[11px] leading-relaxed text-muted-foreground">
             <span className="text-warn">◆</span> Los agentes solo consultan datos. La ejecución de

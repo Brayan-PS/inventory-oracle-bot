@@ -73,8 +73,9 @@ function ProductoNoEncontrado() {
 
 function DetalleProducto() {
   const p = Route.useLoaderData();
-  const { addDecision, estadoDe } = useStore();
+  const { addDecision, estadoDe, decisions, puedeDecidir, usuario } = useStore();
   const estado = estadoDe(p.sku);
+  const historialSku = decisions.filter((d) => d.sku === p.sku).slice(0, 6);
 
   const serie = [
     ...p.historial
@@ -151,7 +152,8 @@ function DetalleProducto() {
             Historial de ventas y pronóstico
           </h2>
           <p className="font-mono text-[11px] text-muted-foreground">
-            28 días reales + 14 días pronosticados (LightGBM v2.4)
+            28 días de historial simulado + 14 pronosticados (promedio ponderado + patrón semanal +
+            tendencia)
           </p>
           <div className="mt-4 h-[230px]">
             <ResponsiveContainer width="100%" height="100%">
@@ -176,7 +178,7 @@ function DetalleProducto() {
                 <Line
                   type="monotone"
                   dataKey="ventas"
-                  name="Ventas reales"
+                  name="Ventas (historial simulado)"
                   stroke="var(--good)"
                   strokeWidth={2.4}
                   dot={false}
@@ -307,6 +309,10 @@ function DetalleProducto() {
                   <p className="mt-4 font-mono text-[11px] text-good">
                     ◆ Decisión registrada: {estado}.
                   </p>
+                ) : !puedeDecidir ? (
+                  <p className="mt-4 font-mono text-[11px] text-warn">
+                    ◆ Tu rol ({usuario.rol}) no puede aprobar compras.
+                  </p>
                 ) : (
                   <div className="mt-4 flex gap-2">
                     <button
@@ -358,20 +364,30 @@ function DetalleProducto() {
           </Panel>
 
           <Panel delay={220}>
-            <PanelHead title="Historial de reposiciones" subtitle="Últimas órdenes registradas" />
+            <PanelHead
+              title="Decisiones de compra"
+              subtitle="Registradas en PostgreSQL para este producto"
+            />
             <div className="divide-y divide-line/70">
-              {p.reposiciones.map((r) => (
-                <div
-                  key={r.fecha}
-                  className="flex items-center justify-between px-5 py-3 text-[13px]"
-                >
+              {historialSku.length === 0 && (
+                <p className="px-5 py-4 text-[13px] text-muted-foreground">
+                  Aún no hay decisiones registradas para este producto.
+                </p>
+              )}
+              {historialSku.map((d) => (
+                <div key={d.id} className="flex items-center justify-between px-5 py-3 text-[13px]">
                   <div>
-                    <p className="font-mono text-[11px] text-muted-foreground">{r.fecha}</p>
-                    <p>{r.cantidad} unidades</p>
+                    <p className="font-mono text-[11px] text-muted-foreground">
+                      {new Date(d.fecha).toLocaleDateString("es-PE")} · {d.usuario}
+                    </p>
+                    <p>{d.cantidadFinal} unidades</p>
                   </div>
                   <div className="text-right">
-                    <p className="font-mono">{money(r.costo)}</p>
-                    <p className="font-mono text-[11px] text-good">{r.estado}</p>
+                    <p className="font-mono">{money(d.costo)}</p>
+                    <p className="font-mono text-[11px] text-good">
+                      {d.estado}
+                      {d.origen === "importado" ? " · importado" : ""}
+                    </p>
                   </div>
                 </div>
               ))}

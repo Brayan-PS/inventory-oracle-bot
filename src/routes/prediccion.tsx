@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import {
   Area,
@@ -16,7 +16,7 @@ import {
 } from "recharts";
 import { AppShell } from "@/components/AppShell";
 import { Kpi, Panel, PanelHead, Tag } from "@/components/kit";
-import { MODEL_METRICS } from "@/lib/inventory";
+import { backtestProduct, computeModelMetrics } from "@/lib/inventory";
 import { useInventory } from "@/lib/store";
 
 export const Route = createFileRoute("/prediccion")({
@@ -26,12 +26,13 @@ export const Route = createFileRoute("/prediccion")({
       {
         name: "description",
         content:
-          "Motor predictivo de Machine Learning: histórico vs predicción, horizontes de 7, 14 y 30 días, métricas MAE, RMSE y WAPE y variables del modelo.",
+          "Motor de pronóstico (promedio ponderado + tendencia): histórico vs predicción, horizontes de 7, 14 y 30 días y backtest con MAE, RMSE y WAPE.",
       },
       { property: "og:title", content: "Predicción de Demanda | Intelli-Stock" },
       {
         property: "og:description",
-        content: "Forecasting con LightGBM, validación temporal y métricas de error auditables.",
+        content:
+          "Pronóstico con promedio ponderado + tendencia y backtest auditable sobre datos simulados.",
       },
     ],
   }),
@@ -53,6 +54,7 @@ function Prediccion() {
   const [sku, setSku] = useState(PRODUCTS[0]!.sku);
   const [horizonte, setHorizonte] = useState<7 | 14 | 30>(14);
   const p = PRODUCTS.find((x) => x.sku === sku)!;
+  const MODEL_METRICS = useMemo(() => computeModelMetrics(PRODUCTS), [PRODUCTS]);
 
   const serie = [
     ...p.historial
@@ -63,24 +65,20 @@ function Prediccion() {
       .map((f) => ({ dia: f.dia, real: null as number | null, pred: f.pronostico })),
   ];
 
-  const backtest = p.historial.slice(-21).map((h, i) => ({
-    dia: h.dia,
-    real: h.ventas,
-    pred: Math.round(h.ventas * (0.93 + ((i * 7) % 13) / 100)),
-  }));
+  const backtest = backtestProduct(p);
 
   return (
     <AppShell
       title="Predicción de Demanda"
-      subtitle={`Motor predictivo ${MODEL_METRICS.modelo} · ${MODEL_METRICS.version}`}
+      subtitle={`${MODEL_METRICS.modelo} · backtest sobre historial simulado`}
     >
       <section className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-5">
         <Kpi
-          label="Precisión estimada"
+          label="Precisión (backtest)"
           value={MODEL_METRICS.precision}
           unit="%"
           tone="good"
-          hint="1 − WAPE sobre validación"
+          hint="100 − WAPE en 14 días de prueba"
         />
         <Kpi
           label="MAE"
@@ -105,8 +103,8 @@ function Prediccion() {
           delay={120}
         />
         <Kpi
-          label="Entrenamiento"
-          value={MODEL_METRICS.entrenado}
+          label="Evaluación"
+          value={MODEL_METRICS.evaluacion}
           hint={MODEL_METRICS.ventanaValidacion}
           delay={160}
         />
@@ -117,7 +115,7 @@ function Prediccion() {
           <div>
             <h2 className="font-display font-semibold tracking-tight">Histórico vs. predicción</h2>
             <p className="font-mono text-[11px] text-muted-foreground">
-              28 días reales seguidos del horizonte seleccionado
+              28 días del historial simulado seguidos del horizonte seleccionado
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -173,7 +171,7 @@ function Prediccion() {
               <Line
                 type="monotone"
                 dataKey="real"
-                name="Ventas reales"
+                name="Ventas (historial simulado)"
                 stroke="var(--good)"
                 strokeWidth={2.4}
                 dot={false}
@@ -212,7 +210,7 @@ function Prediccion() {
             Backtesting (validación temporal)
           </h2>
           <p className="font-mono text-[11px] text-muted-foreground">
-            Predicción del modelo contra la venta real, últimos 21 días
+            Pronóstico del método contra la venta del historial simulado, 14 días de prueba
           </p>
           <div className="mt-4 h-[220px]">
             <ResponsiveContainer width="100%" height="100%">
@@ -310,7 +308,7 @@ function Prediccion() {
         <Panel className="xl:col-span-2" delay={180}>
           <PanelHead
             title="Métricas por modelo"
-            subtitle="Resultado de 6 folds con rolling origin"
+            subtitle="Backtest: 42 días de ajuste y 14 de prueba por SKU (historial simulado)"
           />
           <div className="divide-y divide-line/70">
             {MODEL_METRICS.comparativa.map((m) => (
@@ -330,7 +328,7 @@ function Prediccion() {
         <Panel className="p-5" delay={220}>
           <h2 className="font-display font-semibold tracking-tight">Variables utilizadas</h2>
           <p className="font-mono text-[11px] text-muted-foreground">
-            Features que alimentan el motor predictivo
+            Datos que usa el método de pronóstico
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             {MODEL_METRICS.variables.map((v) => (
@@ -340,9 +338,9 @@ function Prediccion() {
             ))}
           </div>
           <p className="mt-4 border-t border-line pt-4 text-[13px] leading-relaxed text-muted-foreground">
-            El motor predictivo es independiente de los agentes: entrega la demanda estimada al
-            Agente Predictor, que la traduce en riesgo de quiebre. Los cálculos de reposición se
-            mantienen en servicios determinísticos y auditables.
+            El pronóstico es un método estadístico simple (no un modelo entrenado): el Agente
+            Predictor lo expone como herramienta al Supervisor y lo traduce en riesgo de quiebre.
+            Las métricas salen de un backtest real sobre el historial simulado de demostración.
           </p>
         </Panel>
       </section>

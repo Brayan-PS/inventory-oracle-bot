@@ -21,6 +21,7 @@ dist-ssr
 .env.*
 !.env.example
 backups/
+.pgdata/
 test-results/
 playwright-report/
 

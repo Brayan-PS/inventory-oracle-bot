@@ -8,7 +8,9 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { useRouter } from "@tanstack/react-router";
 import { computeMetrics, type Product } from "./inventory";
+import type { SesionUsuario } from "./data.functions";
 import type { AgentId } from "./supervisor";
 import type { Decision, DecisionEstado, DecisionInput } from "./decisions";
 export type { Decision, DecisionEstado } from "./decisions";
@@ -30,6 +32,12 @@ interface Inventory {
   SUPPLIER_LIST: string[];
 }
 interface StoreValue {
+  usuario: SesionUsuario;
+  /** Solo admin y comprador pueden registrar decisiones de compra. */
+  puedeDecidir: boolean;
+  cerrarSesion: () => Promise<void>;
+  /** Llamar cuando una API responde 401: muestra el aviso y vuelve al inicio de sesión. */
+  sesionExpirada: () => void;
   inventory: Inventory;
   decisions: Decision[];
   log: LogEntry[];
@@ -42,18 +50,30 @@ interface StoreValue {
 }
 const StoreContext = createContext<StoreValue | null>(null);
 
+class NoAutorizado extends Error {}
+
 async function postDecisions(path: string, data: unknown) {
   const response = await fetch(path, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   });
-  const result = await response.json();
+  const result = await response.json().catch(() => ({}));
+  if (response.status === 401) throw new NoAutorizado(result.error ?? "Sesión expirada.");
   if (!response.ok) throw new Error(result.error ?? "No se pudo guardar la decisión.");
   return result as { decisions: Decision[]; inserted: number };
 }
 
-export function StoreProvider({ children, snapshot }: { children: ReactNode; snapshot: Snapshot }) {
+export function StoreProvider({
+  children,
+  snapshot,
+  usuario,
+}: {
+  children: ReactNode;
+  snapshot: Snapshot;
+  usuario: SesionUsuario;
+}) {
+  const router = useRouter();
   const [decisions, setDecisions] = useState(snapshot.decisions);
   const [log, setLog] = useState<LogEntry[]>([]);
   const [saving, setSaving] = useState(false);
@@ -73,44 +93,62 @@ export function StoreProvider({ children, snapshot }: { children: ReactNode; sna
     [snapshot.products],
   );
 
-  const addDecision = useCallback(async (d: DecisionInput) => {
-    if (busy.current) return false;
-    busy.current = true;
-    setSaving(true);
-    setError(null);
-    const payload = JSON.stringify(d);
-    if (retry.current?.payload !== payload) retry.current = { payload, id: crypto.randomUUID() };
-    try {
-      const result = await postDecisions("/api/decisions", { ...d, id: retry.current.id });
-      setDecisions(result.decisions);
-      retry.current = null;
-      return true;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo guardar la decisión.");
-      return false;
-    } finally {
-      busy.current = false;
-      setSaving(false);
-    }
-  }, []);
+  const sesionExpirada = useCallback(() => {
+    setError("Tu sesión expiró. Vuelve a iniciar sesión.");
+    void router.invalidate();
+  }, [router]);
 
-  const importDecisions = useCallback(async (data: unknown) => {
-    if (busy.current) return null;
-    busy.current = true;
-    setSaving(true);
-    setError(null);
-    try {
-      const result = await postDecisions("/api/decisions/import", data);
-      setDecisions(result.decisions);
-      return result.inserted;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo importar el historial.");
-      return null;
-    } finally {
-      busy.current = false;
-      setSaving(false);
-    }
-  }, []);
+  const cerrarSesion = useCallback(async () => {
+    await fetch("/api/auth/logout", { method: "POST" }).catch(() => undefined);
+    await router.invalidate();
+  }, [router]);
+
+  const addDecision = useCallback(
+    async (d: DecisionInput) => {
+      if (busy.current) return false;
+      busy.current = true;
+      setSaving(true);
+      setError(null);
+      const payload = JSON.stringify(d);
+      if (retry.current?.payload !== payload) retry.current = { payload, id: crypto.randomUUID() };
+      try {
+        const result = await postDecisions("/api/decisions", { ...d, id: retry.current.id });
+        setDecisions(result.decisions);
+        retry.current = null;
+        return true;
+      } catch (err) {
+        if (err instanceof NoAutorizado) sesionExpirada();
+        else setError(err instanceof Error ? err.message : "No se pudo guardar la decisión.");
+        return false;
+      } finally {
+        busy.current = false;
+        setSaving(false);
+      }
+    },
+    [sesionExpirada],
+  );
+
+  const importDecisions = useCallback(
+    async (data: unknown) => {
+      if (busy.current) return null;
+      busy.current = true;
+      setSaving(true);
+      setError(null);
+      try {
+        const result = await postDecisions("/api/decisions/import", data);
+        setDecisions(result.decisions);
+        return result.inserted;
+      } catch (err) {
+        if (err instanceof NoAutorizado) sesionExpirada();
+        else setError(err instanceof Error ? err.message : "No se pudo importar el historial.");
+        return null;
+      } finally {
+        busy.current = false;
+        setSaving(false);
+      }
+    },
+    [sesionExpirada],
+  );
 
   const pushLog = useCallback((agente: AgentId, texto: string) => {
     const hora = new Date().toLocaleTimeString("es-PE", {
@@ -135,8 +173,13 @@ export function StoreProvider({ children, snapshot }: { children: ReactNode; sna
       .filter((p) => p.cantidadRecomendada > 0 && !resueltos.has(p.sku))
       .sort((a, b) => b.prioridad - a.prioridad);
   }, [decisions, snapshot.products]);
+  const puedeDecidir = usuario.rol === "admin" || usuario.rol === "comprador";
   const value = useMemo(
     () => ({
+      usuario,
+      puedeDecidir,
+      cerrarSesion,
+      sesionExpirada,
       inventory,
       decisions,
       log,
@@ -148,6 +191,10 @@ export function StoreProvider({ children, snapshot }: { children: ReactNode; sna
       estadoDe,
     }),
     [
+      usuario,
+      puedeDecidir,
+      cerrarSesion,
+      sesionExpirada,
       inventory,
       decisions,
       log,

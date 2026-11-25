@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { SupervisorPanel } from "./SupervisorPanel";
-import { useInventory } from "@/lib/store";
+import { useInventory, useStore } from "@/lib/store";
 
 const NAV = [
   { to: "/", label: "Centro de Inteligencia" },
@@ -11,6 +11,7 @@ const NAV = [
   { to: "/inventario", label: "Inventario" },
   { to: "/analitica", label: "Analítica" },
   { to: "/agentes", label: "Agentes IA" },
+  { to: "/tokens", label: "Uso de tokens" },
   { to: "/reportes", label: "Reportes" },
   { to: "/historial", label: "Historial de decisiones" },
   { to: "/simulador", label: "Simulador" },
@@ -26,6 +27,13 @@ export function AppShell({
   children: ReactNode;
 }) {
   const { METRICS } = useInventory();
+  const { usuario, cerrarSesion } = useStore();
+  const iniciales = usuario.nombre
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase())
+    .join("");
   return (
     <div className="flex min-h-screen bg-background text-sm text-foreground">
       <aside className="hidden w-60 shrink-0 flex-col border-r border-line bg-surface lg:flex">
@@ -54,7 +62,7 @@ export function AppShell({
               <span className="blink size-1.5 rounded-full bg-good" /> SUPERVISOR ACTIVO
             </div>
             <div className="mt-2 text-xs text-foreground/70">
-              5 agentes conectados · modelo v2.4
+              Supervisor LLM (Gemini · Groq) · 4 agentes
             </div>
           </div>
         </div>
@@ -70,11 +78,31 @@ export function AppShell({
             <span className="hidden font-mono text-[11px] text-muted-foreground md:block">
               {METRICS.criticos} críticos · {METRICS.pedidosPendientes} pedidos por aprobar
             </span>
-            <span className="grid size-9 place-items-center rounded-full bg-surface-2 font-display text-xs font-semibold">
-              MG
+            <span
+              className="grid size-9 place-items-center rounded-full bg-surface-2 font-display text-xs font-semibold"
+              title={`${usuario.nombre} · ${usuario.rol}`}
+            >
+              {iniciales || "U"}
             </span>
+            <div className="hidden text-right leading-tight sm:block">
+              <p className="text-xs font-medium">{usuario.nombre}</p>
+              <p className="font-mono text-[10px] text-muted-foreground">rol: {usuario.rol}</p>
+            </div>
+            <button
+              onClick={() => void cerrarSesion()}
+              className="rounded-md border border-line px-2.5 py-1.5 text-[12px] text-muted-foreground hover:text-foreground"
+            >
+              Salir
+            </button>
           </div>
         </header>
+        <div
+          role="note"
+          className="border-b border-warn/30 bg-warn/10 px-4 py-2 font-mono text-[11px] text-foreground/80 sm:px-6"
+        >
+          ◆ Datos de demostración: 30 productos simulados. Las métricas de pronóstico provienen de
+          un backtest sobre ese historial simulado. Ninguna compra se ejecuta sin aprobación humana.
+        </div>
         <div className="space-y-5 p-4 sm:p-6">{children}</div>
       </main>
 

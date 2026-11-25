@@ -42,8 +42,9 @@ export function LegacyDecisionsImport() {
   return (
     <Panel className="space-y-3 p-4">
       <p className="text-sm">
-        Importar historial anterior. La importación conserva la fecha y el usuario originales y no
-        borra la copia del navegador.
+        Importar historial anterior. Se conservan la fecha y el usuario originales, pero cada
+        registro queda marcado como «importado» con tu usuario y la hora del servidor. No borra la
+        copia del navegador.
       </p>
       <div className="flex flex-wrap items-center gap-3">
         {local && (

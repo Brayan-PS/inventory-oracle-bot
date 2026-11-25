@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   Area,
@@ -26,7 +27,7 @@ import {
   moneyShort,
   riskColorVar,
 } from "@/components/kit";
-import { MODEL_METRICS, aggregateSeries } from "@/lib/inventory";
+import { computeModelMetrics, aggregateSeries } from "@/lib/inventory";
 import { useInventory } from "@/lib/store";
 
 export const Route = createFileRoute("/")({
@@ -61,6 +62,7 @@ const tooltipStyle = {
 
 function CentroInteligencia() {
   const { METRICS, PRODUCTS } = useInventory();
+  const MM = useMemo(() => computeModelMetrics(PRODUCTS), [PRODUCTS]);
   const series = aggregateSeries(PRODUCTS);
   const riskData = [
     { name: "Crítico", value: METRICS.criticos, color: "var(--accent)" },
@@ -146,11 +148,11 @@ function CentroInteligencia() {
           delay={280}
         />
         <Kpi
-          label="Precisión del modelo"
-          value={MODEL_METRICS.precision}
+          label="Precisión (backtest)"
+          value={MM.precision}
           unit="%"
           tone="good"
-          hint={`WAPE ${MODEL_METRICS.wape}% · MAE ${MODEL_METRICS.mae}`}
+          hint={`WAPE ${MM.wape}% · historial simulado`}
           delay={320}
         />
         <Kpi
@@ -170,7 +172,8 @@ function CentroInteligencia() {
                 Demanda histórica vs. pronóstico vs. stock
               </h2>
               <p className="font-mono text-[11px] text-muted-foreground">
-                8 semanas reales + 4 semanas proyectadas
+                8 semanas del historial simulado + 4 proyectadas · el pronóstico pasado usa solo
+                datos previos a cada semana · stock: actual y proyección sin reposición
               </p>
             </div>
             <div className="flex gap-1 font-mono text-[11px]">
@@ -215,11 +218,12 @@ function CentroInteligencia() {
                   strokeWidth={2}
                   strokeDasharray="5 4"
                   dot={false}
+                  connectNulls={false}
                 />
                 <Line
                   type="monotone"
                   dataKey="stock"
-                  name="Stock"
+                  name="Stock (proyección sin reposición)"
                   stroke="var(--accent)"
                   strokeWidth={2}
                   dot={false}

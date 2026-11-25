@@ -1,494 +1,142 @@
-# Intelli Stock Advisor
+# Intelli-Stock — Sistema multiagente de reposición de inventarios
 
-Quiero que construyas desde cero una aplicación web llamada “Intelli-Stock”, basada en el documento Word adjunto.
+MVP académico (Tecnologías Emergentes, Grupo 10). Un **Agente Supervisor con LLM** (Google Gemini; **Groq** de respaldo automático) recibe preguntas en lenguaje natural y delega en **cuatro agentes especializados que colaboran entre sí** para decidir qué, cuánto y cuándo reponer. Toda compra requiere aprobación humana.
 
-Debe ser un MVP visual y funcional de un sistema multiagente inteligente para gestión predictiva de inventarios, orientado al encargado de compras.
+> **Datos de demostración:** 30 productos simulados. El historial de ventas es simulado pero coherente (sus últimos 7 y 30 días suman exactamente las ventas registradas).
 
-La idea principal es:
+**En línea:** `https://<tu-servicio>.onrender.com` (ver «Despliegue en Render»). · **Usuario para el docente:** `docente` (la contraseña se entrega aparte; nunca se guarda en el repositorio).
 
-USUARIO CONSULTA → AGENTE SUPERVISOR INTERPRETA → AGENTES ESPECIALIZADOS ANALIZAN → IA CONSOLIDA → SISTEMA RECOMIENDA → HUMANO APRUEBA.
+![CI](../../actions/workflows/ci.yml/badge.svg)
 
-Usa exactamente la arquitectura planteada en el documento:
+## Arquitectura multiagente
 
-- Agente Supervisor
-
-- Agente Analista de Ventas
-
-- Agente Predictor de Demanda
-
-- Agente Gestor de Inventario
-
-- Agente de Reposición
-
-El Supervisor debe ser el centro de la experiencia. El usuario debe poder escribir consultas en lenguaje natural como:
-
-“¿Qué productos debo reponer esta semana?”
-
-“¿Qué productos tienen riesgo crítico?”
-
-“¿Cuánto debería comprar de café?”
-
-“¿Por qué recomiendas esa cantidad?”
-
-“¿Qué productos tienen sobrestock?”
-
-“Muéstrame los productos con menor cobertura.”
-
-El sistema debe simular visualmente cómo el Supervisor consulta a los demás agentes y mostrar estados como:
-
-- Analizando ventas…
-
-- Prediciendo demanda…
-
-- Consultando inventario…
-
-- Calculando reposición…
-
-- Generando recomendación…
-
-Después debe entregar resultados basados en los datos simulados del sistema, no respuestas genéricas.
-
-## Diseño
-
-Quiero una interfaz moderna tipo SaaS / Business Intelligence, limpia, profesional y empresarial.
-
-Usar:
-
-- sidebar lateral
-
-- tarjetas KPI
-
-- gráficos interactivos
-
-- alertas
-
-- rankings
-
-- indicadores
-
-- tablas solo cuando sean necesarias
-
-- panel flotante o persistente del Supervisor IA
-
-No hacer una web compuesta únicamente por tablas.
-
-## Secciones principales
-
-Crear estas páginas:
-
-1. Centro de Inteligencia
-
-2. Productos
-
-3. Reposición
-
-4. Predicción de Demanda
-
-5. Inventario
-
-6. Analítica
-
-7. Agentes IA
-
-8. Reportes
-
-9. Historial de decisiones
-
-## Dashboard principal
-
-Mostrar KPIs como:
-
-- Total SKUs
-
-- Productos críticos
-
-- Riesgo medio
-
-- Productos saludables
-
-- Productos con sobrestock
-
-- Cobertura promedio
-
-- Pedidos pendientes
-
-- Valor del inventario
-
-- Precisión del modelo predictivo
-
-Añadir gráficos como:
-
-- Demanda histórica vs demanda pronosticada vs stock
-
-- Distribución de riesgo
-
-- Top productos en riesgo
-
-- Productos por rotación
-
-- Ventas últimas semanas
-
-- Demanda proyectada 7, 14 y 30 días
-
-- Cobertura de inventario
-
-- Capital inmovilizado
-
-## Productos
-
-Crear mínimo 25 productos simulados de distintas categorías.
-
-Cada producto debe tener:
-
-- SKU
-
-- nombre
-
-- categoría
-
-- precio compra
-
-- precio venta
-
-- stock actual
-
-- stock mínimo
-
-- stock máximo
-
-- ventas 7 días
-
-- ventas 30 días
-
-- demanda prevista
-
-- cobertura
-
-- lead time
-
-- rotación
-
-- riesgo
-
-- proveedor
-
-- cantidad recomendada de reposición
-
-Agregar buscador, filtros y ordenamiento.
-
-Al seleccionar un producto, mostrar una vista detallada con:
-
-- KPIs
-
-- historial de ventas
-
-- forecast
-
-- riesgo
-
-- explicación de IA
-
-- factores que influyeron en la recomendación
-
-- historial de reposiciones
-
-## Agentes IA
-
-Crear una pantalla muy visual llamada “Centro de Agentes IA”.
-
-Mostrar al Agente Supervisor conectado con los demás agentes.
-
-Cada agente debe mostrar:
-
-- estado
-
-- responsabilidad
-
-- última ejecución
-
-- tareas realizadas
-
-- resultado resumido
-
-También debe existir un registro de actividad, por ejemplo:
-
-19:42 Supervisor recibió consulta
-
-19:42 Analista revisando ventas
-
-19:42 Predictor ejecutando forecasting
-
-19:43 Gestor consultando inventario
-
-19:43 Reposición calculando pedido
-
-19:43 Supervisor generó respuesta
-
-## Predicción
-
-Crear una sección específica de Machine Learning.
-
-Mostrar:
-
-- histórico vs predicción
-
-- horizonte 7 / 14 / 30 días
-
-- MAE
-
-- RMSE
-
-- WAPE
-
-- precisión estimada
-
-- variables utilizadas
-
-Usar los conceptos definidos en el documento adjunto.
-
-## Reposición
-
-La IA debe recomendar:
-
-- qué producto comprar
-
-- cuánto comprar
-
-- cuándo comprar
-
-- prioridad
-
-- riesgo
-
-- costo estimado
-
-- explicación
-
-Permitir:
-
-- aprobar
-
-- modificar cantidad
-
-- posponer
-
-- descartar
-
-IMPORTANTE:
-
-Toda compra debe requerir aprobación humana. No ejecutar compras automáticamente.
-
-## Simulador
-
-Agregar una sección “¿Qué pasaría si...?”
-
-Ejemplos:
-
-“¿Qué pasa si no repongo café?”
-
-Mostrar:
-
-- días hasta quiebre
-
-- unidades potencialmente perdidas
-
-- ventas potenciales perdidas
-
-- probabilidad de quiebre
-
-“¿Qué pasa si compro 100 unidades?”
-
-Mostrar:
-
-- nueva cobertura
-
-- riesgo de sobrestock
-
-- capital invertido
-
-## Datos
-
-Los datos pueden ser simulados, pero deben ser coherentes entre sí.
-
-Si un producto tiene poco stock y alta demanda, debe tener riesgo alto.
-
-Si tiene mucho stock y poca demanda, debe marcarse posible sobrestock.
-
-Las respuestas del Supervisor deben utilizar realmente esos datos.
-
-## Importante
-
-Usa el Word adjunto como fuente principal para la lógica, arquitectura multiagente, funciones de los agentes, flujo de interacción y motor predictivo.
-
-Quiero que el resultado parezca un MVP avanzado y presentable en una exposición universitaria.
-
-El usuario debe sentir que tiene un analista inteligente de inventarios que le dice:
-
-QUÉ comprar,
-
-CUÁNTO comprar,
-
-CUÁNDO comprar
-
-y POR QUÉ.
-
-This project was built with [Lovable](https://lovable.dev).
-
-**Live app**: https://inventory-oracle-bot.lovable.app
-
-## Build with Lovable
-
-Continue developing this project in the [Lovable editor](https://lovable.dev/projects/a84afde5-32ed-4eef-a828-0fd6dbce9bbe).
-
-- **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: every change made in Lovable is committed straight to this repository.
-- **Full ownership**: this code is yours. Push to `main` on GitHub and your changes sync back into Lovable, ready for your next prompt.
-
-## Development
-
-### Docker local (aplicación + PostgreSQL)
-
-Requiere Docker Desktop iniciado con contenedores Linux. En PowerShell, desde la
-raíz del repositorio:
-
-```powershell
-if (-not (Test-Path .env)) { Copy-Item .env.example .env }
-# Edita .env y reemplaza POSTGRES_PASSWORD por tu contraseña local.
-docker compose up --build -d
-docker compose ps
+```
+Usuario ─► Supervisor (Gemini → Groq, function calling) ──► herramientas de los agentes
+                │                                         │
+                │        ┌────────────── bus de mensajes entre agentes ───────────────┐
+                │        │  Reposición ─► Predictor ─► Analista de Ventas              │
+                │        │      │             └──────► Gestor de Inventario            │
+                │        │      └──► Gestor de Inventario ─► Analista de Ventas        │
+                │        └─────────────────────────────────────────────────────────────┘
+                ▼
+   verificación de TODAS las cifras ─► (1 corrección) ─► respuesta ─► aprobación humana
 ```
 
-Abre http://localhost:3000. Si el puerto está ocupado, cambia APP_PORT en .env
-(por ejemplo, 3001) y ejecuta de nuevo `docker compose up -d`.
-Si ya existe un .env, consérvalo en lugar de sobrescribirlo con la plantilla.
+| Agente | Responsabilidad | Pide datos a |
+|---|---|---|
+| **Supervisor** | Interpreta la consulta con Gemini, decide a quién delegar, verifica cifras y consolida | Todos (por herramientas) |
+| **Analista de Ventas** | Ventas 7/30 días, rotación, tendencia, margen, rankings | Gestor (stock para la rotación) |
+| **Predictor de Demanda** | Demanda 7/14/30 días y riesgo de quiebre | Analista (ventas), Gestor (cobertura) |
+| **Gestor de Inventario** | Stock, mínimos/máximos, proveedor, cobertura, sobrestock, búsqueda de productos | Predictor (demanda), Analista (rotación) |
+| **Reposición** | Cantidad, costo, momento y prioridad de compra; decide y explica su decisión | Predictor (demanda y riesgo), Gestor (stock y cobertura) |
 
-La imagen usa Node 24.16.0 y compila Nitro con `NITRO_PRESET=node_server`.
-El objetivo de compilación de Lovable conserva su configuración. Docker utiliza
-`package-lock.json` mediante `npm ci`; no necesita Node o PostgreSQL instalados
-directamente en Windows. El primer build necesita internet para descargar
-imágenes y dependencias.
+- **Comunicación:** mensajes estructurados (`de`, `para`, `tipo`, `asunto`, `contenido`) en un bus (`src/lib/agents.ts`). Cada solicitud y respuesta queda en la traza.
+- **Memoria:** memoria de trabajo compartida por consulta (un dato pedido dos veces se responde de memoria) y memoria de conversación (los últimos 3 turnos se envían a Gemini).
+- **Proveedores:** Gemini es el principal. Si responde con cuota agotada (429), clave inválida, saturación o error de red, la misma consulta se repite con **Groq** (`llama-3.3-70b-versatile`, respaldo `openai/gpt-oss-120b`) con los mismos agentes y controles. Tras agotar la cuota, Gemini queda en pausa 15 min para no demorar cada consulta. Si los dos fallan, responde el motor de reglas. La traza indica qué proveedor respondió y por qué.
+- **Control:** máx. 6 llamadas a agentes, 45 s, 8192 tokens, reintento y modelos de respaldo; verificación de **todas** las cifras de la respuesta contra los datos de los agentes, con una ronda de corrección; si persisten cifras sin respaldo, responde el motor de reglas.
+- **Auditoría:** cada consulta se guarda en `agent_runs` (usuario, agentes, argumentos, mensajes entre agentes, verificación, tokens, costo y tiempo) y se ve en **Agentes IA** y **Uso de tokens**.
 
-La aplicación lee productos y guarda decisiones en PostgreSQL. El servicio
-transitorio `migrate` aplica las migraciones SQL y carga los 30 productos originales
-solo si el catálogo está vacío; app espera a que termine. No sobrescribe productos
-existentes ni borra decisiones. Los cálculos, simulaciones y estados se conservan;
-chat y actividad siguen en memoria. `/health/ready` comprueba acceso a las tablas.
+Código: `src/server/supervisor-llm.server.ts` (Supervisor), `src/lib/agents.ts` (agentes y bus), `src/lib/inventory.ts` (cálculos por especialidad), `src/lib/catalogo.ts` (búsqueda de productos), `src/lib/supervisor.ts` (motor de reglas de respaldo).
 
-El sistema continúa siendo una demostración local sin autenticación. Para ejecutar
-esta versión fuera de Compose, incluido Lovable, el servidor necesita acceso a una
-base PostgreSQL con el esquema inicializado. No hay respaldo localStorage como
-fuente alternativa silenciosa cuando falla la base.
+## Seguridad
 
-Migraciones y semilla se pueden repetir mediante:
+- **Inicio de sesión** con usuarios en PostgreSQL; contraseñas con **scrypt** y sal; sesiones del lado del servidor (la base guarda solo el hash SHA-256 del token); cookie `HttpOnly`, `SameSite=Lax` y `Secure` en HTTPS.
+- **Roles:** `admin` (todo, ve toda la auditoría), `comprador` (consulta y aprueba), `lector` (consulta, no aprueba).
+- **Bloqueo** de la cuenta 15 min tras 5 intentos fallidos; límite de intentos por IP; registro de accesos en `auditoria_accesos`.
+- **Auditoría no falsificable:** el usuario y la fecha de cada decisión los pone el servidor; lo importado queda marcado como `importado` con quién y cuándo lo importó.
+- **CSRF:** verificación de `Origin` en todas las escrituras. **Validación** con zod y consultas parametrizadas.
+- **Límites de costo** por usuario y por día contados en PostgreSQL (sobreviven a reinicios); IP tomada solo de los valores de `X-Forwarded-For` que agrega el proxy propio.
+- **Cabeceras:** `X-Frame-Options`, `nosniff`, `Referrer-Policy`, `HSTS` en HTTPS, `frame-ancestors 'none'`.
+- Ninguna herramienta de los agentes escribe datos ni ejecuta compras.
 
-```powershell
-docker compose run --rm migrate
-```
+## Ejecutar localmente SIN Docker (recomendado para probar)
 
-Los SQL aplicados se registran con checksum en `schema_migrations`. Agrega otra
-migración para cambios futuros; no edites un SQL ya aplicado. La semilla de
-`seeds/products.json` se omite si ya existen productos. Docker usa PGHOST=db y
-PGPORT=5432; las variables POSTGRES_* de .env inicializan la base y PG* conectan
-el servidor. Ninguna credencial se envía al navegador.
-
-### Conservar decisiones del navegador anterior
-
-En Historial se puede importar el historial de este navegador o un archivo JSON;
-también descargar una copia si se detecta historial local. La importación preserva
-id, fecha y usuario originales, no duplica identificadores y no borra localStorage.
-Un lote con SKU desconocido o datos inválidos se rechaza sin importación parcial.
-
-Si las decisiones estaban en otro origen (por ejemplo localhost:5173 o Lovable),
-expórtalas allí antes de cambiar de versión. Desde la consola del navegador en ese
-origen, puedes obtener el JSON para guardarlo en un archivo:
-
-```javascript
-localStorage.getItem("intelli-stock:decisions")
-```
-
-Si DevTools muestra una cadena con comillas/escapes, usa la opción de copiar el
-valor de la cadena para obtener el array JSON, sin comillas externas. Importa el
-archivo desde Historial en localhost:3000. Conserva el original como respaldo.
-
-Comandos útiles:
-
-```powershell
-docker compose logs --tail 100 app db
-docker compose stop
-docker compose start
-docker compose down
-```
-
-`down` conserva los datos de PostgreSQL en el volumen `postgres_data` del
-proyecto. **`down -v` elimina ese volumen y sus datos.** No lo uses para detener
-normalmente el sistema. Cambiar POSTGRES_PASSWORD en .env no cambia la contraseña
-de una base ya inicializada; requiere actualizar el rol dentro de PostgreSQL.
-
-PostgreSQL publica `127.0.0.1:5433` en Windows (configurable con DB_PORT).
-En pgAdmin instalado en este equipo, usa host `127.0.0.1`, puerto `5433`, base y
-usuario `intelli_stock` y la contraseña POSTGRES_PASSWORD de .env. Si cambiaste
-POSTGRES_DB o POSTGRES_USER, usa esos valores. Para acceder desde su contenedor:
-
-```powershell
-docker compose exec db psql -U intelli_stock -d intelli_stock
-```
-
-Respaldo y restauración de comprobación en otra base (no sobrescribe la principal):
-
-```powershell
-New-Item -ItemType Directory -Force backups | Out-Null
-docker compose exec db pg_dump -U intelli_stock -d intelli_stock -Fc -f /tmp/intelli-stock.dump
-docker compose cp db:/tmp/intelli-stock.dump ./backups/intelli-stock.dump
-docker compose exec db createdb -U intelli_stock intelli_stock_restore_check
-docker compose exec db pg_restore -U intelli_stock -d intelli_stock_restore_check --exit-on-error /tmp/intelli-stock.dump
-```
-
-El ejemplo guarda el dump dentro del contenedor antes de copiarlo para evitar
-alterar archivos binarios por redirección en Windows PowerShell. Usa nombres
-fechados para conservar varios respaldos. La base de comprobación debe ser nueva.
-Estos comandos usan el usuario/base de la plantilla; reemplaza `intelli_stock`
-si configuraste otros nombres en .env.
-
-### Desarrollo de la aplicación con Node local
-
-Requiere Node 24.16.0, npm y .env configurado. La base puede seguir en Docker,
-publicada solo en loopback, puerto 5433:
+`npm ci` descarga un PostgreSQL 17 embebido.
 
 ```powershell
 npm.cmd ci
-docker compose up -d db
-docker compose run --rm migrate
-npm.cmd run dev
+npm.cmd run local          # desarrollo → la URL aparece en la consola
+npm.cmd run local:prod     # igual que en la nube → http://localhost:3000
+npm.cmd run local:reset    # borra la base local (.pgdata) para empezar de cero
 ```
 
-El comando dev lee .env; el servidor local usa POSTGRES_* y 127.0.0.1:5433 por
-defecto. Si usas otra base, establece PGHOST, PGPORT, PGDATABASE, PGUSER y PGPASSWORD
-en el entorno del servidor. No copies esas variables a VITE_*.
+La primera vez se crea el usuario **demo** (admin) con una contraseña aleatoria que se muestra en la consola y se guarda en `.pgdata/credenciales-demo.txt`. La contraseña de la base local también es aleatoria (`.pgdata/.clave-db`). Para usar Gemini, crea `.env` con `GEMINI_API_KEY=tu_clave`.
 
-### Verificaciones
+> Si ya tenías una carpeta `.pgdata` de la versión anterior, define una vez `LOCAL_DB_PASSWORD` en `.env` con la contraseña que usaba esa versión, o ejecuta `npm.cmd run local:reset`.
+
+## Ejecutar con Docker Compose
+
+1. `Copy-Item .env.example .env` y completa `POSTGRES_PASSWORD`, `DEMO_USER` y `DEMO_PASSWORD` (10+ caracteres con letras y números).
+2. `docker compose up --build -d`
+3. Abre `http://localhost:3000` e inicia sesión con el usuario de demostración.
+
+## Usuarios
 
 ```powershell
-npm.cmd test
+# La contraseña se pasa por variable de entorno, nunca por la línea de comandos.
+$env:USER_PASSWORD = "Clave-Segura-2026"; npm.cmd run db:user -- ana comprador "Ana Pérez"
+```
+
+Roles válidos: `admin`, `comprador`, `lector`. Cambiar la contraseña cierra las sesiones abiertas de ese usuario.
+
+## Despliegue en Render (en línea con PostgreSQL)
+
+1. Crea una clave en Google AI Studio (aistudio.google.com → *Get API key*).
+2. En Render: **New → Blueprint**, conecta este repositorio y acepta `render.yaml` (servicio web Docker `intelli-stock` + base `intelli-stock-db`).
+3. Render pedirá `GEMINI_API_KEY`, `GROQ_API_KEY` (respaldo, opcional) y `DEMO_PASSWORD` (contraseña del usuario `docente`).
+4. Al arrancar se aplican las migraciones, la semilla y el usuario de demostración.
+5. Comprueba `https://<tu-servicio>.onrender.com/health/ready` → `{"status":"ready"}`.
+6. Inicia sesión, haz una consulta en el panel del Supervisor y abre **Traza**: debe decir **LLM** y mostrar los mensajes entre agentes.
+
+El plan gratuito de Render suspende el servicio tras un rato sin uso; la primera visita puede tardar cerca de un minuto.
+
+## Variables de entorno
+
+Ver `.env.example` (solo nombres y valores no secretos). Principales: `POSTGRES_*` / `PG*` / `DATABASE_URL` (base de datos), `GEMINI_API_KEY`, `GEMINI_MODEL`, `GEMINI_FALLBACK_MODELS` (LLM principal), `GROQ_API_KEY`, `GROQ_MODEL`, `GROQ_FALLBACK_MODELS` (LLM de respaldo), `LLM_*` (límites), `DEMO_USER`, `DEMO_PASSWORD`, `DEMO_NOMBRE`, `DEMO_ROL` (usuario de demostración), `SESSION_HOURS`, `TRUSTED_PROXY_HOPS`, `DATABASE_SSL`.
+
+**No publiques contraseñas, claves API ni tokens** en el repositorio, cuestionarios, capturas o documentos. Si alguno se publicó por error, revócalo o cámbialo.
+
+## Pruebas
+
+```powershell
+npm.cmd test                 # 48 pruebas unitarias (cálculos, búsqueda, agentes, Supervisor con Gemini y Groq simulados, seguridad)
 npm.cmd run typecheck
+npm.cmd run lint
 npm.cmd run build
+npm.cmd run test:integration # servidor compilado + PostgreSQL real + Gemini y Groq simulados por HTTP (8 pruebas)
+npm.cmd run test:e2e         # navegador real con Playwright (9 pruebas); usa una base de PRUEBA y E2E_ALLOW_DB_RESET=1
 ```
 
-Las pruebas de navegador usan otro proyecto Compose y volumen, en puerto 3001.
-No las dirijas al entorno principal: eliminan decisiones únicamente del proyecto
-de pruebas `inventory-oracle-bot-test`.
+GitHub Actions (`.github/workflows/ci.yml`) ejecuta todo lo anterior con PostgreSQL 17 en cada push.
+
+## Medición en línea
 
 ```powershell
-$env:APP_PORT = "3001"
-$env:DB_PORT = "5434"
-docker compose -p inventory-oracle-bot-test up --build -d --wait
-Remove-Item Env:APP_PORT
-Remove-Item Env:DB_PORT
-npm.cmd exec playwright -- install chromium
-npm.cmd run test:e2e
-docker compose -p inventory-oracle-bot-test down
+$env:MEDIR_USUARIO = "docente"; $env:MEDIR_PASSWORD = "<contraseña>"
+node scripts/medir.mjs https://<tu-servicio>.onrender.com
 ```
 
-El volumen de pruebas queda conservado; está separado del volumen principal.
-La compilación fuera de Docker usa el destino Lovable predeterminado; Docker
-selecciona Node con NITRO_PRESET. Los errores de formato del código de plantilla
-ajeno a esta integración no se corrigen mediante un reformateo global.
+## Respaldo de la base de datos
+
+```powershell
+npm.cmd run db:respaldo                       # JSON en backups/ (funciona en Docker, Render y local)
+npm.cmd run db:restaurar -- backups/<archivo>.json
+npm.cmd run db:backup                         # pg_dump dentro del contenedor de Docker Compose
+```
+
+El respaldo JSON no incluye contraseñas ni sesiones. La carpeta `backups/` está excluida de Git.
+
+## Comandos útiles (Docker)
+
+```powershell
+docker compose logs --tail 100 app db
+docker compose stop      # detener sin borrar datos
+docker compose start
+docker compose down      # conserva el volumen; evita "down -v" si quieres conservar los datos
+```
+
+## Alcance de la demostración
+
+- Catálogo simulado de 30 productos; las métricas del pronóstico salen de un backtest sobre ese historial simulado.
+- Las recomendaciones nunca ejecutan compras: la aprobación es siempre humana.
+- No usar con datos reales sin una revisión de seguridad adicional.

@@ -1,12 +1,51 @@
 import { createHash } from "node:crypto";
 import { readFile, readdir } from "node:fs/promises";
 import pg from "pg";
+import { hashPassword, validarPassword } from "./password.mjs";
 
-const client = new pg.Client({ connectionTimeoutMillis: 10000 });
+// Uso:
+//   node scripts/db.mjs migrate                  aplica migraciones (con checksum)
+//   node scripts/db.mjs seed                     carga los 30 productos si la base está vacía y,
+//                                                si existen DEMO_USER y DEMO_PASSWORD, crea/actualiza
+//                                                ese usuario de demostración
+//   node scripts/db.mjs user <usuario> <rol> "<nombre>"
+//                                                crea o actualiza un usuario; la contraseña se lee de
+//                                                la variable USER_PASSWORD (nunca de la línea de comandos)
+//
+// En la nube (Render) se usa DATABASE_URL; en Docker Compose, las variables PG*.
+const ssl =
+  process.env.DATABASE_SSL === "true"
+    ? { ssl: { rejectUnauthorized: process.env.DATABASE_SSL_INSECURE !== "true" } }
+    : {};
+const client = new pg.Client({
+  connectionTimeoutMillis: 10000,
+  ...(process.env.DATABASE_URL ? { connectionString: process.env.DATABASE_URL } : {}),
+  ...ssl,
+});
+
+const ROLES = ["admin", "comprador", "lector"];
+
+async function upsertUsuario(usuario, rol, nombre, password) {
+  if (!/^[a-z0-9._-]{3,40}$/.test(usuario))
+    throw new Error("Usuario inválido: 3 a 40 caracteres a-z, 0-9, punto, guion o guion bajo.");
+  if (!ROLES.includes(rol)) throw new Error(`Rol inválido. Usa: ${ROLES.join(", ")}.`);
+  const problema = validarPassword(password);
+  if (problema) throw new Error(problema);
+  await client.query(
+    `INSERT INTO usuarios (usuario, nombre, rol, password_hash) VALUES ($1, $2, $3, $4)
+     ON CONFLICT (usuario) DO UPDATE SET nombre = EXCLUDED.nombre, rol = EXCLUDED.rol,
+       password_hash = EXCLUDED.password_hash, activo = true, intentos_fallidos = 0, bloqueado_hasta = NULL`,
+    [usuario, nombre, rol, hashPassword(password)],
+  );
+  // Al cambiar la contraseña se cierran las sesiones abiertas de ese usuario.
+  await client.query("DELETE FROM sesiones WHERE usuario = $1", [usuario]);
+}
+
 await client.connect();
 try {
   await client.query("SELECT pg_advisory_lock(183714, 1)");
-  if (process.argv[2] === "migrate") {
+  const comando = process.argv[2];
+  if (comando === "migrate") {
     await client.query(`CREATE TABLE IF NOT EXISTS schema_migrations (
       name text PRIMARY KEY, checksum text NOT NULL, applied_at timestamptz NOT NULL DEFAULT now()
     )`);
@@ -37,7 +76,7 @@ try {
         throw error;
       }
     }
-  } else if (process.argv[2] === "seed") {
+  } else if (comando === "seed") {
     await client.query("BEGIN");
     try {
       const { rows } = await client.query("SELECT count(*)::int AS total FROM products");
@@ -73,13 +112,34 @@ try {
       } else {
         console.log("Catálogo existente conservado; no se aplica semilla.");
       }
+      if (process.env.DEMO_USER && process.env.DEMO_PASSWORD) {
+        await upsertUsuario(
+          process.env.DEMO_USER.toLowerCase(),
+          process.env.DEMO_ROL || "admin",
+          process.env.DEMO_NOMBRE || "Docente evaluador",
+          process.env.DEMO_PASSWORD,
+        );
+        console.log(`Usuario de demostración listo: ${process.env.DEMO_USER.toLowerCase()}`);
+      }
+      const { rows: u } = await client.query("SELECT count(*)::int AS total FROM usuarios");
+      if (u[0].total === 0 && !process.env.LOCAL_SETUP)
+        console.log(
+          'Aún no hay usuarios. Crea uno con: USER_PASSWORD=… node scripts/db.mjs user <usuario> admin "<nombre>"',
+        );
       await client.query("COMMIT");
     } catch (error) {
       await client.query("ROLLBACK");
       throw error;
     }
+  } else if (comando === "user") {
+    const [usuario, rol, ...nombre] = process.argv.slice(3);
+    if (!usuario || !rol || !nombre.length)
+      throw new Error('Uso: USER_PASSWORD=… node scripts/db.mjs user <usuario> <rol> "<nombre>"');
+    if (!process.env.USER_PASSWORD) throw new Error("Define la contraseña en USER_PASSWORD.");
+    await upsertUsuario(usuario.toLowerCase(), rol, nombre.join(" "), process.env.USER_PASSWORD);
+    console.log(`Usuario ${usuario.toLowerCase()} (${rol}) listo.`);
   } else {
-    throw new Error("Uso: node scripts/db.mjs migrate|seed");
+    throw new Error("Uso: node scripts/db.mjs migrate|seed|user");
   }
 } finally {
   await client.end();
